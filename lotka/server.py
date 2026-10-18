@@ -20,12 +20,13 @@ import base64
 import csv
 import io
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import lv
+from . import command, lv
 from .presets import PRESETS
 from .sim import METRIC_KEYS, Params, Simulation
 
@@ -116,6 +117,13 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass  # browser reloaded / navigated away mid-request
 
+    def _same_origin(self) -> bool:
+        """Only the dashboard itself may launch/stop processes (blocks drive-by requests from other sites)."""
+        origin = self.headers.get("Origin")
+        if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
+            return False
+        return origin is None or urlparse(origin).netloc == self.headers.get("Host")
+
     def _json(self, obj, code=200):
         self._send(code, json.dumps(obj).encode(), "application/json")
 
@@ -125,6 +133,20 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path in ("/", "/index.html"):
                 self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+            elif u.path in ("/evolve", "/evolve.html"):
+                self._send(200, (STATIC / "evolve.html").read_bytes(), "text/html; charset=utf-8")
+            elif u.path == "/api/evo/meta":
+                self._json(command.meta())
+            elif u.path == "/api/evo/runs":
+                self._json({"runs": command.list_runs(), "busy_workers": command.busy_workers(),
+                            "cpus": os.cpu_count() or 1})
+            elif u.path == "/api/evo/run":
+                self._json(command.run_detail(q.get("name", "")))
+            elif u.path == "/api/evo/file":
+                f = command.file_path(q.get("name", ""), q.get("f", ""))
+                ctype = {"png": "image/png", "csv": "text/csv", "json": "application/json"}.get(
+                    f.suffix.lstrip("."), "text/plain")
+                self._send(200, f.read_bytes(), ctype)
             elif u.path == "/api/schema":
                 self._json(Params.schema())
             elif u.path == "/api/step":
@@ -148,9 +170,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length) or b"{}")
-            if u.path == "/api/reset":
+            if u.path.startswith("/api/evo/") and not self._same_origin():
+                self._json({"error": "cross-origin request refused"}, 403)
+            elif u.path == "/api/reset":
                 APP.reset(body)
                 self._json(APP.state())
+            elif u.path == "/api/evo/start":
+                self._json(command.start(body))
+            elif u.path == "/api/evo/stop":
+                self._json(command.stop(body.get("name", "")))
+            elif u.path == "/api/evo/resume":
+                self._json(command.resume(body.get("name", ""), int(body.get("gens", 0)), body.get("workers")))
             else:
                 self._send(404, b"not found", "text/plain")
         except Exception as e:  # noqa: BLE001

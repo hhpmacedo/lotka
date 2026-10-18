@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lotka — Command Center</title>
+<style>
+  :root { --bg:#111418; --panel:#1a1f26; --line:#2b323c; --fg:#d8dee6; --mut:#8a96a3; --acc:#2d6cdf;
+          --ok:#3fb950; --warn:#d29922; --bad:#e8443a; --prey:#f4e04d; --pred:#e8443a; --veg:#3e9a3a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.45 system-ui,sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:18px; margin:0; } header a { color:#7fb2ff; text-decoration:none; }
+  #cpu { margin-left:auto; color:var(--mut); }
+  #cpubar { display:inline-block; width:120px; height:8px; background:#0f1317; border-radius:4px; vertical-align:middle; overflow:hidden; margin-left:6px; }
+  #cpubar i { display:block; height:100%; background:var(--acc); }
+  .wrap { display:grid; grid-template-columns:460px 1fr; gap:14px; padding:14px; align-items:start; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 10px; }
+  h3 { font-size:12px; color:var(--mut); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.05em; }
+  label.f { display:grid; grid-template-columns:130px 1fr; align-items:center; gap:6px; margin:5px 0; }
+  input, select, textarea { background:#0f1317; color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:4px 6px; font:inherit; width:100%; }
+  input[type=checkbox] { width:auto; }
+  button { background:#2a3340; color:var(--fg); border:1px solid #3a4553; border-radius:5px; padding:6px 12px; cursor:pointer; font:inherit; }
+  button:hover { background:#344050; } button.primary { background:var(--acc); border-color:var(--acc); } button.danger { border-color:#7a2a26; color:#ffb4ae; }
+  button:disabled { opacity:.5; cursor:default; }
+  .desc { color:var(--mut); font-size:12px; margin:4px 0 8px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; }
+  .grid2 label.f { grid-template-columns:90px 1fr; }
+  table { width:100%; border-collapse:collapse; } th, td { text-align:left; padding:4px 6px; border-bottom:1px solid #222831; }
+  th { color:var(--mut); font-weight:500; font-size:11px; text-transform:uppercase; }
+  #genes td input[type=number], #genes td input[type=text] { width:58px; padding:2px 4px; } #genes td { padding:3px 4px; font-size:12px; }
+  #genes tr.off td { color:var(--mut); }
+  .badge { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:600; }
+  .running { background:#1f3a5f; color:#8cc4ff; } .finished { background:#1d3b25; color:#7ee08f; }
+  .stopped { background:#3b3320; color:#e7c56b; } .failed, .died { background:#4a1f1d; color:#ff9b93; }
+  .prog { height:6px; background:#0f1317; border-radius:3px; overflow:hidden; min-width:80px; } .prog i { display:block; height:100%; background:var(--acc); }
+  tr.run { cursor:pointer; } tr.run:hover { background:#20262e; } tr.run.sel { background:#232c38; }
+  canvas { width:100%; display:block; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; } .row > * { flex:1; min-width:300px; }
+  pre { background:#0c0f12; border:1px solid var(--line); border-radius:6px; padding:8px; max-height:220px; overflow:auto; font-size:11.5px; margin:0; white-space:pre-wrap; }
+  .bar { position:relative; height:6px; background:#0f1317; border-radius:3px; min-width:80px; } .bar i { position:absolute; top:-2px; width:4px; height:10px; background:var(--prey); border-radius:2px; }
+  .kv { display:flex; flex-wrap:wrap; gap:6px 18px; margin:6px 0; } .kv b { color:#fff; font-weight:600; }
+  #tip { position:fixed; pointer-events:none; background:#0c0f12; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:11.5px; display:none; z-index:10; max-width:320px; }
+  .muted { color:var(--mut); } .err { color:#ff9b93; }
+  a.btn { text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lotka · Command Center</h1>
+  <a href="/" target="_blank">↗ Simulator</a>
+  <span id="cpu">CPU workers in use <span id="cputxt">–</span><span id="cpubar"><i style="width:0"></i></span></span>
+</header>
+<div class="wrap">
+  <!-- ======================================================= new run -->
+  <div class="panel" id="newrun">
+    <h2>New optimisation run</h2>
+    <label class="f">Run name <input id="name" placeholder="auto (objective + time)"></label>
+    <label class="f">Objective <select id="objective"></select></label>
+    <div class="desc" id="objdesc"></div>
+    <div id="objargs"></div>
+
+    <h3>Budget</h3>
+    <div class="grid2">
+      <label class="f" title="genomes per generation">Population <input id="pop" type="number" min="4"></label>
+      <label class="f">Generations <input id="gens" type="number" min="1"></label>
+      <label class="f" title="training seeds per genome">Seeds <input id="seeds" type="number" min="1"></label>
+      <label class="f" title="ticks per simulation">Ticks <input id="ticks" type="number" min="50"></label>
+      <label class="f" title="grid width = height">Grid size <input id="size" type="number" min="20"></label>
+      <label class="f" title="parallel processes (CPU cores)">Workers <input id="workers" type="number" min="1"></label>
+      <label class="f" title="Gaussian mutation step on the 0..1 gene scale">Mutation σ <input id="mut_sigma" type="number" step="0.01" min="0"></label>
+      <label class="f" title="hold-out seeds for final validation">Val. seeds <input id="validate_seeds" type="number" min="1"></label>
+    </div>
+    <div class="desc" id="estimate"></div>
+
+    <h3>Genes (DNA) <span class="muted" style="text-transform:none">— unchecked genes are fixed at the value shown</span></h3>
+    <div style="margin-bottom:6px"><button id="gall">all</button> <button id="gnone">none</button> <button id="greset">reset</button></div>
+    <div style="max-height:360px;overflow:auto"><table id="genes"><thead><tr><th></th><th>parameter</th><th>min</th><th>max</th><th>fixed</th></tr></thead><tbody></tbody></table></div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+      <button class="primary" id="start">▶ Start run</button>
+      <span id="startmsg" class="desc" style="margin:0"></span>
+    </div>
+  </div>
+
+  <!-- ======================================================= runs + detail -->
+  <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+    <div class="panel">
+      <h2>Runs</h2>
+      <table id="runs"><thead><tr><th>run</th><th>objective</th><th>state</th><th>progress</th><th>best</th><th>validated</th><th>coexist</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="desc" id="noruns"></div>
+    </div>
+    <div class="panel" id="detail" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0" id="dname"></h2><span id="dstate"></span>
+        <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="danger" id="dstop">■ Stop</button>
+          <span id="dresumebox"><input id="dresgens" type="number" style="width:70px" title="total generations"> gens
+            <button id="dresume">↻ Resume / extend</button></span>
+          <a class="btn" id="dlevals" target="_blank"><button>evals.csv</button></a>
+          <a class="btn" id="dlbest" target="_blank"><button>best.json</button></a>
+        </span>
+      </div>
+      <div class="kv" id="dinfo"></div>
+      <div class="row">
+        <div><h3>Fitness per generation</h3><canvas id="cfit" height="230"></canvas></div>
+        <div id="qdbox"><h3>Behaviour map (MAP-Elites) — click a cell to open it in the simulator</h3><canvas id="cqd" height="230"></canvas></div>
+      </div>
+      <div class="row">
+        <div><h3>Best genome</h3><div id="dgenome"></div></div>
+        <div><h3>Validated ranking (hold-out seeds)</h3><div id="dtop"></div></div>
+      </div>
+      <h3>Log</h3><pre id="dlog"></pre>
+    </div>
+  </div>
+</div>
+<div id="tip"></div>
+<script>
+const $ = id => document.getElementById(id);
+let META = null, RUNS = [], SEL = null, DETAIL = null;
+async function api(path, body) {
+  const opts = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) } : {};
+  const r = await fetch(path, opts); const j = await r.json();
+  if (j.error) throw new Error(j.error); return j;
+}
+const fmt = (v, d = 3) => v == null || v === '' || !isFinite(+v) ? '—' : (Math.abs(+v) >= 100 ? (+v).toFixed(0) : (+v).toFixed(d));
+const ago = t => { if (!t) return ''; const s = Date.now() / 1000 - t; return s < 90 ? `${s | 0}s ago` : s < 5400 ? `${(s / 60) | 0} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
+
+// ------------------------------------------------------------- new-run form
+function buildForm() {
+  const sel = $('objective');
+  for (const [k, o] of Object.entries(META.objectives)) sel.add(new Option(k, k));
+  sel.value = 'coexistence';
+  sel.onchange = buildArgs; buildArgs();
+  for (const [k, v] of Object.entries(META.defaults)) if ($(k)) $(k).value = v;
+  for (const id of ['pop', 'gens', 'seeds', 'ticks', 'size', 'workers', 'validate_seeds']) $(id).oninput = estimate;
+  buildGenes(); estimate();
+}
+function buildArgs() {
+  const o = META.objectives[$('objective').value];
+  $('objdesc').textContent = o.desc;
+  const box = $('objargs'); box.innerHTML = '';
+  // args string like: period=150 cv=0.3 | species=predators|prey|total | expr="..." | x=cv_prey:0:1.5:12
+  const re = /(\w+)=("([^"]*)"|\S+)/g; let m;
+  while ((m = re.exec(o.args || ''))) {
+    const key = m[1], raw = m[3] ?? m[2];
+    const lab = document.createElement('label'); lab.className = 'f';
+    lab.innerHTML = `${key} `;
+    let el;
+    if (key !== 'expr' && raw.includes('|')) { el = document.createElement('select'); raw.split('|').forEach(v => el.add(new Option(v, v))); }
+    else { el = document.createElement('input'); el.value = raw; if (key === 'expr') el.title = 'metrics: ' + META.metrics.join(', '); }
+    el.dataset.arg = key; lab.appendChild(el); box.appendChild(lab);
+    if (key === 'expr') { const d = document.createElement('div'); d.className = 'desc'; d.textContent = 'metrics: ' + META.metrics.join(', '); box.appendChild(d); }
+    if (key === 'x' || key === 'y') { const d = document.createElement('div'); d.className = 'desc'; d.textContent = `${key} axis = metric:min:max:bins`; box.appendChild(d); }
+  }
+}
+function buildGenes() {
+  const tb = $('genes').querySelector('tbody'); tb.innerHTML = '';
+  const defaults = Object.fromEntries(META.params.map(p => [p.name, p.default]));
+  for (const p of META.params) {
+    if (['width', 'height', 'seed'].includes(p.name)) continue;
+    const g = META.genes[p.name];
+    const tr = document.createElement('tr'); tr.dataset.name = p.name; tr.title = p.desc;
+    const step = p.type === 'float' ? 'any' : 1;
+    tr.innerHTML = `<td><input type="checkbox" ${g ? 'checked' : ''}></td><td>${p.name}</td>
+      <td><input type="number" step="${step}" class="lo" value="${g ? g.lo : p.min}"></td>
+      <td><input type="number" step="${step}" class="hi" value="${g ? g.hi : p.max}"></td>
+      <td><input type="text" class="fx" value="${defaults[p.name]}"></td>`;
+    const cb = tr.querySelector('input[type=checkbox]');
+    const upd = () => tr.classList.toggle('off', !cb.checked); cb.onchange = upd; upd();
+    tb.appendChild(tr);
+  }
+}
+function estimate() {
+  const n = +$('pop').value, g = +$('gens').value, s = +$('seeds').value, vs = +$('validate_seeds').value;
+  const sims = n * s * (g + 1) + 5 * vs;
+  const cost = (+$('size').value) ** 2 * (+$('ticks').value) / (100 * 100 * 1500); // relative to measured baseline
+  const rate = 2.3 * (+$('workers').value) / 8 / Math.max(cost, 0.01);              // sims/s measured: ~2.3 on 8 cores
+  const min = sims / rate / 60;
+  $('estimate').textContent = `≈ ${sims.toLocaleString()} simulations · roughly ${min < 1 ? Math.max(1, Math.round(min * 60)) + ' s' : min < 90 ? min.toFixed(0) + ' min' : (min / 60).toFixed(1) + ' h'} (upper bound — runs that go extinct stop early)`;
+}
+$('gall').onclick = () => document.querySelectorAll('#genes tbody input[type=checkbox]').forEach(c => { c.checked = true; c.onchange(); });
+$('gnone').onclick = () => document.querySelectorAll('#genes tbody input[type=checkbox]').forEach(c => { c.checked = false; c.onchange(); });
+$('greset').onclick = buildGenes;
+$('start').onclick = async () => {
+  const body = { name: $('name').value.trim() || undefined, objective: $('objective').value, args: {}, genes: {}, fixed: {} };
+  for (const k of ['pop', 'gens', 'seeds', 'ticks', 'size', 'workers', 'validate_seeds', 'mut_sigma']) body[k] = $(k).value;
+  document.querySelectorAll('#objargs [data-arg]').forEach(el => body.args[el.dataset.arg] = el.value);
+  document.querySelectorAll('#genes tbody tr').forEach(tr => {
+    const n = tr.dataset.name;
+    if (tr.querySelector('input[type=checkbox]').checked) body.genes[n] = [+tr.querySelector('.lo').value, +tr.querySelector('.hi').value];
+    else {
+      const p = META.params.find(p => p.name === n), v = tr.querySelector('.fx').value;
+      if (String(v) !== String(p.default)) body.fixed[n] = v;
+    }
+  });
+  if (!Object.keys(body.genes).length) { $('startmsg').textContent = 'select at least one gene'; return; }
+  const busy = RUNS.filter(r => r.state === 'running').reduce((a, r) => a + (r.workers || 0), 0);
+  if (busy + (+body.workers) > META.cpus && !confirm(`${busy} workers already busy on ${META.cpus} CPUs — runs will share cores and slow each other down. Start anyway?`)) return;
+  $('start').disabled = true; $('startmsg').textContent = 'starting…';
+  try { const r = await api('/api/evo/start', body); $('startmsg').textContent = `started ${r.name}`; $('name').value = ''; SEL = r.name; await refreshRuns(); await refreshDetail(); }
+  catch (e) { $('startmsg').innerHTML = `<span class="err">${e.message}</span>`; }
+  $('start').disabled = false;
+};
+
+// ------------------------------------------------------------- runs list
+async function refreshRuns() {
+  const r = await api('/api/evo/runs'); RUNS = r.runs;
+  $('cputxt').textContent = `${r.busy_workers}/${r.cpus}`;
+  $('cpubar').firstElementChild.style.width = Math.min(100, 100 * r.busy_workers / r.cpus) + '%';
+  const tb = $('runs').querySelector('tbody'); tb.innerHTML = '';
+  $('noruns').textContent = RUNS.length ? '' : 'No runs yet — configure one on the left and press Start.';
+  for (const x of RUNS) {
+    const tr = document.createElement('tr'); tr.className = 'run' + (x.name === SEL ? ' sel' : '');
+    const pct = x.gens ? Math.min(100, 100 * x.gen / x.gens) : 0;
+    const args = Object.entries(x.args || {}).map(([k, v]) => `${k}=${v}`).join(' ');
+    tr.innerHTML = `<td><b>${x.name}</b><div class="muted" style="font-size:11px">${ago(x.updated)}</div></td>
+      <td>${x.objective}<div class="muted" style="font-size:11px">${args}</div></td>
+      <td><span class="badge ${x.state}">${x.state}${x.phase && x.state === 'running' && x.phase !== 'evolving' ? ' · ' + x.phase : ''}</span></td>
+      <td><div class="prog"><i style="width:${pct}%"></i></div><span class="muted" style="font-size:11px">gen ${x.gen}/${x.gens} · ${x.evals.toLocaleString()} sims</span></td>
+      <td>${fmt(x.best)}</td><td>${fmt(x.validated)}</td><td>${x.coexist_frac == null ? '—' : (100 * x.coexist_frac).toFixed(0) + '%'}</td>
+      <td>${x.objective === 'qd' ? x.archive_cells + ' cells' : ''}</td>`;
+    tr.onclick = () => { SEL = x.name; refreshRuns(); refreshDetail(); };
+    tb.appendChild(tr);
+  }
+}
+
+// ------------------------------------------------------------- detail
+function openInSim(params) { window.open('/?params=' + encodeURIComponent(JSON.stringify(params)), '_blank'); }
+async function refreshDetail() {
+  if (!SEL) return;
+  try { DETAIL = await api('/api/evo/run?name=' + encodeURIComponent(SEL)); } catch (e) { return; }
+  const d = DETAIL, s = d.status, c = d.config;
+  $('detail').style.display = '';
+  $('dname').textContent = s.name;
+  $('dstate').innerHTML = `<span class="badge ${s.state}">${s.state}</span>` + (s.error ? ` <span class="err">${s.error}</span>` : '');
+  $('dstop').style.display = s.state === 'running' ? '' : 'none';
+  $('dresumebox').style.display = s.state === 'running' ? 'none' : '';
+  if (document.activeElement !== $('dresgens')) $('dresgens').value = (c.gens || 0) + (s.state === 'finished' ? 20 : 0);
+  $('dlevals').href = `/api/evo/file?name=${s.name}&f=evals.csv`; $('dlbest').href = `/api/evo/file?name=${s.name}&f=best.json`;
+  $('dlbest').style.display = d.best ? '' : 'none';
+  const args = Object.entries(c.args || {}).map(([k, v]) => `${k}=${v}`).join(' ');
+  $('dinfo').innerHTML = [
+    ['objective', `${c.objective} ${args}`], ['population', c.pop], ['generations', `${s.gen}/${c.gens}`],
+    ['seeds', c.seeds], ['ticks', c.ticks], ['grid', `${c.fixed.width}×${c.fixed.height}`],
+    ['genes', Object.keys(c.genes).length], ['simulations', s.evals.toLocaleString()],
+    ['fixed', Object.entries(c.fixed).filter(([k]) => !['width', 'height'].includes(k)).map(([k, v]) => `${k}=${v}`).join(', ') || '—'],
+  ].map(([k, v]) => `<span class="muted">${k}</span> <b>${v}</b>`).join('');
+  drawFitness(d.generations, c.objective);
+  $('qdbox').style.display = d.archive ? '' : 'none';
+  if (d.archive) drawQD(d.archive);
+  // best genome
+  const src = d.best ? d.best.params : bestFromArchiveOrNone(d);
+  if (src) {
+    const rows = Object.entries(c.genes).map(([k, [lo, hi]]) => {
+      const v = src[k], pos = hi > lo ? (Number(v) - lo) / (hi - lo) : .5;
+      return `<tr><td>${k}</td><td><b>${typeof v === 'number' ? fmt(v, 4).replace(/\.?0+$/, '') : v}</b></td><td><div class="bar"><i style="left:calc(${(100 * Math.max(0, Math.min(1, pos))).toFixed(1)}% - 2px)"></i></div></td><td class="muted">${lo} – ${hi}</td></tr>`;
+    }).join('');
+    $('dgenome').innerHTML = `<table><tr><th>gene</th><th>value</th><th>position in range</th><th>range</th></tr>${rows}</table>
+      <div style="margin-top:8px"><button id="openbest">Open best in simulator ↗</button>${d.best ? '' : ' <span class="muted">(best so far — not yet validated)</span>'}</div>`;
+    $('openbest').onclick = () => openInSim(src);
+  } else $('dgenome').innerHTML = '<span class="muted">available after the first generation</span>';
+  // validated ranking
+  if (d.best && d.best.top) {
+    $('dtop').innerHTML = `<table><tr><th>#</th><th>fitness</th><th>coexist</th><th>prey</th><th>pred</th><th>CV prey</th><th>period</th><th></th></tr>` +
+      d.best.top.map((t, i) => `<tr><td>${t.rank}</td><td><b>${fmt(t.validated_fitness)}</b></td><td>${(100 * (t.metrics.coexist_frac || 0)).toFixed(0)}%</td>
+        <td>${fmt(t.metrics.mean_prey, 0)}</td><td>${fmt(t.metrics.mean_predators, 0)}</td><td>${fmt(t.metrics.cv_prey, 2)}</td><td>${fmt(t.metrics.period_prey, 0)}</td>
+        <td><button data-i="${i}" class="opentop" style="padding:2px 8px">open ↗</button></td></tr>`).join('') + '</table>';
+    document.querySelectorAll('.opentop').forEach(b => b.onclick = () => openInSim(d.best.top[+b.dataset.i].params));
+  } else $('dtop').innerHTML = `<span class="muted">${s.state === 'running' ? 'computed when the run finishes' : 'not available (run did not finish — resume it)'}</span>`;
+  const pre = $('dlog'), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 5;
+  pre.textContent = d.log || '(no log — run started from the command line)';
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+function bestFromArchiveOrNone(d) {
+  if (d.archive) { const cells = Object.values(d.archive.cells); if (cells.length) return cells.sort((a, b) => b.fitness - a.fitness)[0].params; }
+  return null;
+}
+$('dstop').onclick = async () => { if (!confirm(`Stop ${SEL}? It checkpoints and can be resumed later.`)) return; try { await api('/api/evo/stop', { name: SEL }); } catch (e) { alert(e.message); } setTimeout(tick, 800); };
+$('dresume').onclick = async () => { try { await api('/api/evo/resume', { name: SEL, gens: +$('dresgens').value, workers: META.cpus }); } catch (e) { alert(e.message); } setTimeout(tick, 800); };
+
+// ------------------------------------------------------------- charts
+function prep(c) {
+  const dpr = devicePixelRatio || 1, w = c.clientWidth, h = +c.getAttribute('height');
+  if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); c.style.height = h + 'px'; }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.font = '10px system-ui'; return [ctx, w, h];
+}
+function drawFitness(rows, obj) {
+  const [ctx, w, h] = prep($('cfit')); if (!rows.length) return;
+  const pad = { l:44, r:40, t:10, b:18 };
+  const S = k => rows.map(r => +r[k]);
+  const series = obj === 'qd' ? [['archive_cells', '#7fb2ff', 'archive cells']] : [['best', '#7ee08f', 'best'], ['mean', '#8cc4ff', 'mean'], ['median', '#8a96a3', 'median']];
+  let lo = Infinity, hi = -Infinity; for (const [k] of series) for (const v of S(k)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (hi === lo) { hi += 1; lo -= 1; }
+  const g = S('gen'), gx = Math.max(g[g.length - 1], 1);
+  const X = v => pad.l + v / gx * (w - pad.l - pad.r), Y = v => h - pad.b - (v - lo) / (hi - lo) * (h - pad.t - pad.b);
+  ctx.strokeStyle = '#2b323c'; ctx.fillStyle = '#8a96a3';
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke(); ctx.fillText(fmt(v, 2), 2, y + 3); }
+  ctx.fillText('0', pad.l, h - 5); ctx.fillText('gen ' + gx, w - pad.r - 30, h - 5);
+  // coexist fraction on right axis (0..1)
+  const cf = S('coexist_frac'); ctx.fillStyle = 'rgba(244,224,77,.12)';
+  cf.forEach((v, i) => { const x = X(g[i]), bw = Math.max(2, (w - pad.l - pad.r) / (gx + 1) * .8); ctx.fillRect(x - bw / 2, h - pad.b - v * (h - pad.t - pad.b), bw, v * (h - pad.t - pad.b)); });
+  ctx.fillStyle = '#b8a63a'; ctx.fillText('100%', w - pad.r + 4, pad.t + 6); ctx.fillText('coexist', w - pad.r + 2, pad.t + 18);
+  let ly = pad.t + 10;
+  for (const [k, col, lab] of series) {
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.beginPath(); S(k).forEach((v, i) => i ? ctx.lineTo(X(g[i]), Y(v)) : ctx.moveTo(X(g[i]), Y(v))); ctx.stroke();
+    ctx.fillStyle = col; ctx.fillText(lab, pad.l + 8, ly); ly += 12;
+  }
+  ctx.lineWidth = 1;
+}
+let QDGEOM = null;
+function drawQD(ar) {
+  const [ctx, w, h] = prep($('cqd'));
+  const [xn, xl, xh, xb] = ar.axes.x, [yn, yl, yh, yb] = ar.axes.y;
+  const pad = { l:44, r:10, t:8, b:28 }, cw = (w - pad.l - pad.r) / xb, ch = (h - pad.t - pad.b) / yb;
+  const cells = Object.entries(ar.cells); let fl = Infinity, fh = -Infinity;
+  for (const [, e] of cells) { fl = Math.min(fl, e.fitness); fh = Math.max(fh, e.fitness); }
+  const col = f => { const t = fh > fl ? (f - fl) / (fh - fl) : 1; return `hsl(${200 - 150 * t},70%,${30 + 30 * t}%)`; };
+  ctx.fillStyle = '#0f1317'; ctx.fillRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
+  for (const [k, e] of cells) { const [i, j] = k.split(',').map(Number); ctx.fillStyle = col(e.fitness); ctx.fillRect(pad.l + i * cw + 1, h - pad.b - (j + 1) * ch + 1, cw - 2, ch - 2); }
+  ctx.fillStyle = '#8a96a3';
+  for (let i = 0; i <= xb; i += Math.ceil(xb / 6)) ctx.fillText(fmt(xl + (xh - xl) * i / xb, 2), pad.l + i * cw - 6, h - pad.b + 12);
+  for (let j = 0; j <= yb; j += Math.ceil(yb / 5)) ctx.fillText(fmt(yl + (yh - yl) * j / yb, 0), 4, h - pad.b - j * ch + 3);
+  ctx.fillText(xn + ' →', w - pad.r - 70, h - 3); ctx.fillText('↑ ' + yn, pad.l + 4, pad.t + 10);
+  ctx.fillText(`${cells.length}/${xb * yb} cells · fitness ${fmt(fl, 2)}–${fmt(fh, 2)}`, pad.l + 120, h - 3);
+  QDGEOM = { pad, cw, ch, xb, yb, h, ar };
+}
+function qdCellAt(ev) {
+  if (!QDGEOM) return null; const r = $('cqd').getBoundingClientRect(), g = QDGEOM;
+  const i = Math.floor((ev.clientX - r.left - g.pad.l) / g.cw), j = Math.floor((g.h - g.pad.b - (ev.clientY - r.top)) / g.ch);
+  return g.ar.cells[`${i},${j}`] || null;
+}
+$('cqd').onmousemove = ev => {
+  const e = qdCellAt(ev), tip = $('tip'); if (!e) { tip.style.display = 'none'; return; }
+  const m = e.metrics;
+  tip.innerHTML = `fitness <b>${fmt(e.fitness)}</b><br>prey ${fmt(m.mean_prey, 0)} · predators ${fmt(m.mean_predators, 0)}<br>CV prey ${fmt(m.cv_prey, 2)} · period ${fmt(m.period_prey, 0)}<br>coexist ${(100 * (m.coexist_frac || 0)).toFixed(0)}% · resilience ${fmt(m.resilience, 2)}<br><span class="muted">click to open in simulator</span>`;
+  tip.style.display = 'block'; tip.style.left = (ev.clientX + 14) + 'px'; tip.style.top = (ev.clientY + 10) + 'px';
+};
+$('cqd').onmouseleave = () => $('tip').style.display = 'none';
+$('cqd').onclick = ev => { const e = qdCellAt(ev); if (e) openInSim(e.params); };
+
+// ------------------------------------------------------------- loop
+async function tick() { try { await refreshRuns(); if (SEL) await refreshDetail(); } catch (e) { console.error(e); } }
+(async () => {
+  META = await api('/api/evo/meta'); buildForm();
+  await refreshRuns();
+  if (RUNS.length) { SEL = (RUNS.find(r => r.state === 'running') || RUNS[0]).name; await refreshRuns(); await refreshDetail(); }
+  setInterval(tick, 3000);
+  addEventListener('resize', () => DETAIL && refreshDetail());
+})();
+</script>
+</body>
+</html>

@@ -19,6 +19,7 @@ Two levels of use (`python -m lotka` prints the full list):
 | simulation | `lotka batch` | headless runs and parameter sweeps → CSV |
 | simulation | `lotka compare` | ABM vs five Lotka–Volterra variants → PNG + JSON report |
 | optimisation | `lotka evolve` | genetic algorithm / MAP-Elites over parameter sets, objective chosen per run |
+| optimisation | http://127.0.0.1:8765/evolve | **Command Center**: start, watch, stop and resume runs in the browser |
 
 Dashboard: Space = play/pause. Pick a **Preset** (template) or edit parameters on the left, then
 "Apply & reset". "Export CSV" downloads the per-tick metrics of the current run. The bottom panel
@@ -47,6 +48,19 @@ and a rule-derived mean-field model to the ABM, using the per-tick event counts.
 parameter mapping and findings are in [docs/lotka_volterra.md](docs/lotka_volterra.md).
 
     .venv/bin/python -m lotka compare --preset lv_cycles --ticks 3000 --out runs/cmp_cycles
+
+## Command Center (no command line needed)
+
+With `lotka serve` running, open http://127.0.0.1:8765/evolve:
+
+* **New run** – pick the objective (its arguments appear as fields), budget (population,
+  generations, seeds, ticks, grid size, workers) with a time estimate, and tick which genes evolve
+  (edit their min/max; unticked genes are fixed at the value you type).
+* **Runs** – every run with state, progress, best and validated fitness, and CPU workers in use.
+  Runs are separate processes: they keep going if the browser or the server is closed.
+* **Run detail** – live fitness chart, MAP-Elites behaviour map (hover for metrics, click a cell to
+  open it in the simulator), best genome shown against its gene ranges, validated top-5 with
+  "open ↗" buttons, log tail, Stop (checkpoints) and Resume/extend, CSV/JSON downloads.
 
 ## Evolution (optimisation level)
 
@@ -164,6 +178,8 @@ prey_eaten, prey_starved, predator_starved, prey_old_age, predator_old_age, prey
     lotka/lv.py            Lotka-Volterra models, rate fitting, equilibria, mean-field map
     lotka/compare.py       ABM vs LV report (matplotlib)
     lotka/evolve.py        GA / MAP-Elites optimiser with pluggable objectives
+    lotka/command.py       Command Center backend (launch / monitor / stop / resume runs)
+    lotka/static/evolve.html Command Center UI
     docs/lotka_volterra.md theory, ABM↔LV mapping, findings
     lotka/server.py        stdlib HTTP server + JSON API for the dashboard
     lotka/static/index.html dashboard (canvas grid, time series, phase portrait, events)

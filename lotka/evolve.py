@@ -30,6 +30,7 @@ import json
 import math
 import operator
 import os
+import signal
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -386,12 +387,30 @@ class Evolver:
         print(f"gen {self.gen:3d}  best {row['best']:.4f}  mean {row['mean']:.4f}  "
               f"coexist {row['coexist_frac']:.2f}  div {row['diversity']:.3f}{extra}  ({row['seconds']}s)", flush=True)
 
+    def status(self, state: str, **extra):
+        st = {"state": state, "pid": os.getpid(), "gen": self.gen, "gens": self.cfg["gens"],
+              "evals": self.n_evals, "updated": time.time(), **extra}
+        path = self.out / "status.json"
+        if path.exists():
+            try:
+                st["started"] = json.loads(path.read_text()).get("started", time.time())
+            except ValueError:
+                st["started"] = time.time()
+        else:
+            st["started"] = time.time()
+        if self.fit is not None and len(self.fit):
+            st["best"] = float(np.max(self.fit))
+        tmp = self.out / "status.json.tmp"
+        tmp.write_text(json.dumps(st))
+        tmp.replace(path)
+
     def checkpoint(self):
         state = {"gen": self.gen, "n_evals": self.n_evals, "pop": self.pop.tolist(), "fit": self.fit.tolist(),
                  "metrics": self.metrics, "rng": self.rng.bit_generator.state, "archive": self.archive}
         tmp = self.out / "checkpoint.json.tmp"
         tmp.write_text(json.dumps(state))
         tmp.replace(self.out / "checkpoint.json")
+        self.status("running")
         if self.cfg["objective"] == "qd":
             (self.out / "archive.json").write_text(json.dumps(
                 {"axes": self.qd_axes, "cells": self.archive}, indent=1))
@@ -426,7 +445,6 @@ class Evolver:
             self.checkpoint()
         while self.gen < cfg["gens"]:
             t0 = time.time()
-            self.gen += 1
             if cfg["objective"] == "qd" and self.archive:
                 elites = list(self.archive.values())
                 kids = []
@@ -454,6 +472,7 @@ class Evolver:
                 self.pop = np.vstack([np.array(kids), U])
                 self.fit = np.concatenate([kid_fit, F])
                 self.metrics = kid_met + A
+            self.gen += 1
             self._log_evals(U, F, A)
             self._log_gen(t0)
             self.checkpoint()
@@ -466,7 +485,7 @@ class Evolver:
         else:
             uniq, seen = [], set()
             for i in np.argsort(-self.fit):
-                key = tuple(np.round(self.pop[i], 4))
+                key = json.dumps(self.genome.decode(self.pop[i]), sort_keys=True)
                 if key not in seen:
                     seen.add(key)
                     uniq.append(self.pop[i])
@@ -531,6 +550,7 @@ class Evolver:
 
 
 def _init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
 
@@ -575,6 +595,8 @@ def main(argv=None):
         out = Path(a.resume)
         cfg = json.loads((out / "config.json").read_text())
         cfg["gens"] = max(cfg["gens"], a.gens)
+        cfg["workers"] = a.workers
+        (out / "config.json").write_text(json.dumps(cfg, indent=2))
         ev = Evolver(cfg)
         ev.restore()
         print(f"resuming {out} at generation {ev.gen} -> {cfg['gens']}")
@@ -605,21 +627,42 @@ def main(argv=None):
         cfg = {"objective": a.objective, "args": args, "pop": a.pop, "gens": a.gens, "seeds": a.seeds,
                "ticks": a.ticks, "genes": genes, "fixed": fixed, "elite": a.elite, "cx_prob": a.cx_prob,
                "mut_rate": a.mut_rate, "mut_sigma": a.mut_sigma, "validate_top": a.validate_top,
-               "validate_seeds": a.validate_seeds, "rng_seed": a.rng_seed, "out": str(out)}
+               "validate_seeds": a.validate_seeds, "rng_seed": a.rng_seed, "out": str(out),
+               "workers": a.workers}
         out.mkdir(parents=True, exist_ok=True)
         (out / "config.json").write_text(json.dumps(cfg, indent=2))
         ev = Evolver(cfg)
         print(f"objective={a.objective} {args}  pop={a.pop} gens={a.gens} seeds={a.seeds} ticks={a.ticks} "
               f"grid={a.size}x{a.size} genes={len(genes)} workers={a.workers} -> {out}")
 
+    def _term(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _term)
     t0 = time.time()
-    if a.workers > 1:
-        with ProcessPoolExecutor(a.workers, initializer=_init_worker) as pool:
-            ev.run(pool)
-            ev.finalize(pool)
-    else:
-        ev.run(None)
-        ev.finalize(None)
+    ev.status("running", phase="evolving")
+    pool = ProcessPoolExecutor(a.workers, initializer=_init_worker) if a.workers > 1 else None
+    try:
+        ev.run(pool)
+        ev.status("running", phase="validating")
+        ev.finalize(pool)
+        if pool:
+            pool.shutdown()
+    except KeyboardInterrupt:
+        if pool:
+            procs = list((pool._processes or {}).values())
+            pool.shutdown(wait=False, cancel_futures=True)
+            for pr in procs:
+                pr.terminate()
+        ev.status("stopped")
+        print(f"\nstopped at generation {ev.gen}; continue with --resume {out}", flush=True)
+        return
+    except Exception as e:
+        if pool:
+            pool.shutdown(wait=False, cancel_futures=True)
+        ev.status("failed", error=str(e))
+        raise
+    ev.status("finished")
     print(f"done: {ev.n_evals} simulations in {time.time() - t0:.0f}s -> {out}/best.json")
 
 

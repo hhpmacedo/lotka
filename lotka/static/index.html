@@ -39,6 +39,7 @@
 <body>
 <aside>
   <h1>Lotka <small>agent-based predator / prey</small></h1>
+  <div><a href="/evolve" target="_blank" style="color:#7fb2ff;text-decoration:none;font-size:12px">↗ Optimisation command center</a></div>
   <div class="ctrls">
     <button id="play" class="primary">▶ Play</button>
     <button id="stepbtn">Step</button>
@@ -383,6 +384,14 @@ window.addEventListener('keydown', e => { if (e.target.tagName !== 'INPUT' && e.
   for (const [k, v] of Object.entries(presets)) { const o = document.createElement('option'); o.value = k; o.textContent = v.label; $('preset').appendChild(o); }
   const st = await api('/api/state');
   absorb(st); buildParams(st.params);
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('params') || qs.get('preset')) {
+    const d = {}; for (const s of schema) d[s.name] = s.default;
+    if (qs.get('preset') && presets[qs.get('preset')]) { Object.assign(d, presets[qs.get('preset')].params); $('preset').value = qs.get('preset'); $('presetdesc').textContent = presets[qs.get('preset')].desc; }
+    if (qs.get('params')) { try { Object.assign(d, JSON.parse(qs.get('params'))); $('presetdesc').textContent = 'Parameters opened from the Command Center.'; } catch (e) { setStatus('bad params in URL'); } }
+    await reset(d);
+    history.replaceState(null, '', '/');
+  }
   requestAnimationFrame(loop);
 })();
 </script>
