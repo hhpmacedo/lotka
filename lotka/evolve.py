@@ -124,6 +124,8 @@ def evaluate(job: dict) -> dict:
     ext = [t for t in (m["prey_extinct_tick"], m["predator_extinct_tick"]) if t >= 0]
     alive = min(ext) if ext else T
     half = sim.history[len(sim.history) // 2:]
+    m["yield_prey"] = float(np.mean([h["harvested_prey"] for h in half])) / cells * 1000
+    m["yield_predators"] = float(np.mean([h["harvested_predators"] for h in half])) / cells * 1000
     m["prey_births_tail"] = int(sum(h["prey_births"] for h in half))
     m["predator_births_tail"] = int(sum(h["predator_births"] for h in half))
     coexist = m["outcome"] == "coexist"
@@ -193,6 +195,12 @@ def _amplitude(m, args):
     return m["cv_prey"] or 0.0
 
 
+def _yield(m, args):
+    sp = args.get("species", "prey")
+    y = m["yield_prey"] + m["yield_predators"] if sp == "total" else m[f"yield_{sp}"]
+    return y - float(args.get("cv_weight", 0)) * (m["cv_prey"] or 0)
+
+
 def _lv_match(m, args):
     return 1.0 / (1.0 + m.get("lv_error", 10.0))
 
@@ -257,6 +265,10 @@ OBJECTIVES: dict[str, Objective] = {
     "lv_match": Objective(
         "Where does Lotka-Volterra theory hold? Minimise the gap (means, CV, period) between "
         "the ABM and a fitted LV model.", per_seed=_viable(_lv_match), args="model=chain|rm|logistic|classic"),
+    "yield": Objective(
+        "Sustainable harvest: maximise harvest per tick per 1000 cells while both species coexist "
+        "(evolve the harvest_* control genes; optional penalty on prey CV).",
+        per_seed=_viable(_yield), args="species=prey|predators|total cv_weight=0"),
     "custom": Objective(
         "Any expression over per-seed metrics, averaged over seeds (see --list for metric names).",
         per_seed=_custom, stop_on_pred=False, args='expr="mean_predators/cells*100 - 5*cv_prey"'),
@@ -271,7 +283,7 @@ METRIC_NAMES = ["survival", "coexist", "resilience", "mean_prey", "mean_predator
                 "period_prey", "period_predators", "predator_lag", "max_prey", "max_predators",
                 "min_prey_after_transient", "min_predators_after_transient",
                 "prey_extinct_tick", "predator_extinct_tick", "cells", "ticks", "lv_error",
-                "prey_births_tail", "predator_births_tail", "static"]
+                "prey_births_tail", "predator_births_tail", "static", "yield_prey", "yield_predators"]
 
 
 def fitness_of(obj: Objective, ms: list[dict], args: dict) -> float:

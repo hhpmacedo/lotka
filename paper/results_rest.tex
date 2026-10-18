@@ -1,0 +1,69 @@
+\subsection{Enrichment: coexistence is bounded on both sides}
+Shortening the regrowth time $R$ enriches the prey's resource (Fig.~\ref{fig:enrich}). For $N=12$ the prey
+CV rises from \EnrAcvPoor{} at $R=\EnrRpoor$ (where predators are already extinct) to \EnrAcvRich{} at
+$R=\EnrRrich$, and peak prey reach $\approx\EnrAmaxRich$. In the cycling regime ($N=30$) the effect is
+stronger and lethal: amplitude grows to CV $\approx\EnrBcvRich$, and coexistence drops to as low as
+\EnrBpMin\% of seeds at $R=\EnrBRworst$ (boom--bust cycles drive predators, and sometimes prey, to
+extinction). This is the paradox of enrichment \cite{rosenzweig1971} reproduced by agents, with a
+qualitative difference from the RM model: here destabilisation is gradual and acts by amplifying
+stochastic troughs until one hits zero, rather than through a sharp Hopf bifurcation. On the poor side,
+slow regrowth ($R\ge28$ for $N=12$, $R=60$ for $N=30$) keeps prey too sparse to sustain predators
+(bottom-up control). Coexistence thus occupies an intermediate band of resource productivity whose width
+shrinks as predators become more persistent. Richer resources also raise the mean prey level, which a
+chain model with a fixed $x^\ast=g/(cb)$ cannot express; the shift reflects nonlinear averaging over
+larger cycles.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.9\linewidth]{enrichment.pdf}
+\caption{Enrichment (E3; 6 seeds per point): vegetation regrowth time $R$ (richer to the right) for a
+stable ($N=12$) and a cycling ($N=30$) predator.}
+\label{fig:enrich}
+\end{figure*}
+
+\subsection{System size and demographic noise}
+In the stable regime the prey CV scales as $(\text{cells})^{\SizeSslope}$ (Fig.~\ref{fig:size}a), the
+$-\tfrac12$ law of independent demographic fluctuations: the deterministic equilibrium is approached as
+the system grows, and the noisy wobble is a finite-size effect. The cycling regime decays more slowly
+(exponent \SizeCslope{} over the sizes where it persists): its amplitude is set by the resonant
+amplification of noise near a weakly damped mode as well as by system size. Persistence depends strongly
+on size (Fig.~\ref{fig:size}b): the stable regime survives in \SizeSpSmall\% of $\SizeSLmin^2$ worlds and
+in all worlds from $\SizeSLsafe^2$ cells, whereas the cycling regime never survives at $\SizeCLmin^2$ and
+needs $\SizeCLsafe^2$ cells for certain persistence. Large oscillations combined with small populations
+make extinction by a random trough likely, a stochastic analogue of an unstable equilibrium. (The
+optimisation of Sec.~\ref{sec:opt} used $100^2$ cells, where even the cycling preset persists in only $80\%$ of runs;
+its fitness therefore rewards robustness to this finite-size risk.)
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=\linewidth]{size.pdf}
+\caption{System size (E4; 10 seeds). (a) Prey CV in coexisting runs; dotted: $\propto 1/\sqrt{\text{cells}}$.
+(b) Probability that both species survive 3000 ticks.}
+\label{fig:size}
+\end{figure}
+
+\subsection{Optimisation: the space of behaviours}\label{sec:opt}
+The MAP-Elites search (\QDgens{} generations, population \QDpop, \QDevals{} simulations, with finite
+lifespans of 150/300 ticks) filled \QDcells{} of \QDtotal{} behaviour cells (Fig.~\ref{fig:qd}). Coexistence
+is possible from almost static populations to violent cycles in which prey vary many-fold
+(CV up to $\approx1.4$; e.g.\ cell (10,6): CV \OscCV, period \OscPer, prey from \OscMin{} to \OscMax).
+Fitness falls monotonically with amplitude, from \QDfitLowCV{} for CV$<0.125$ to \QDfitHighCV{} for
+CV$\ge1.25$: a \emph{robustness--amplitude trade-off}, since deep troughs leave little margin before
+extinction. The validated best genome (fitness \QDbest{} on 10 hold-out seeds) is a dense, nearly static
+community (\QDbestPrey{} prey, \QDbestPred{} predators, CV \QDbestCV) with satiation raised to
+\QDbestKills{} kills per tick.
+
+\paragraph{Specification gaming.} A first search without lifespans and without a reproduction requirement
+converged on a degenerate optimum: predators with zero reproduction probability and long starvation time,
+i.e.\ a few dozen immortal predators living among prey that filled $94\%$ of the grid. It ``coexisted''
+perfectly and contained no predator--prey dynamics at all, a textbook case of an optimiser exploiting an
+incomplete objective \cite{lehman2020}. We excluded it by (i) imposing finite lifespans during
+optimisation and (ii) counting a run as coexistence only if both species are still being born in the second
+half. In the corrected archive the smallest evolved predator reproduction probability is \QDminRepro.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.9\linewidth]{qd_map.pdf}
+\caption{(a) MAP-Elites archive over prey CV $\times$ period ($100^2$ cells, 1500 ticks, 3 seeds per genome);
+colour is robust-coexistence fitness. (b) Prey time series (normalised) of three evolved genomes circled in (a).}
+\label{fig:qd}
+\end{figure*}
+
+\input{results_control.tex}

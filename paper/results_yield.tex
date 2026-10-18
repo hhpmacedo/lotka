@@ -1,0 +1,18 @@
+\subsection{Optimising the harvest policy}\label{sec:yield}
+Finally we let a genetic algorithm design the prey-harvest policy: the genome holds the controller type
+(effort, quota or feedback) and its parameters, and fitness is the mean prey yield per 1000 cells in the
+second half of a 1500-tick run on a $100^2$ grid (3 training seeds, population 32, \Ygens{} generations,
+\Yevals{} simulations). No stability or coexistence term was included. The search converged on
+\YmodeName{} with $E=\Yeffort$, a training fitness of \Ytrain{} prey per tick per 1000 cells. Among
+policies that kept both species alive on all training seeds, the best effort, quota and feedback designs
+reached \YbestEff, \YbestQuo{} and \YbestFb{}, respectively. Feedback was abandoned early: only 11 of
+632 genomes used it, and 9 of those had set points above the prey level of a $100^2$ world, so the
+controller was idle. The GA's verdict on feedback is therefore uninformative, not negative.
+
+Re-validated on 10 fresh seeds, the same genome scored only \Yval{}: predators survived in \Ycoex\% of
+seeds (mean \YmeanPred{} predators). The evolved effort sits just below the point where predators are lost
+in E6a, the edge of the coexistence region, where the outcome depends on chance. This is the expected
+behaviour of an optimiser given a yield-only objective with few seeds: it climbs to the boundary of the
+feasible region and \emph{overfits} the training noise. Robust management requires putting the constraint
+(coexistence, variability) into the objective and evaluating it over many stochastic realisations---the
+same lesson as the specification gaming of Sec.~\ref{sec:opt}, now with an economic objective.

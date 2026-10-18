@@ -86,6 +86,12 @@ class App:
                 "history": hist,
             }
 
+    def perturb(self, species: str, fraction: float) -> dict:
+        sp = {"prey": 1, "predators": 2}[species]
+        with self.lock:
+            self.sim.perturb(sp, max(-1.0, min(float(fraction), 5.0)))
+        return self.state(self.sim.tick - 1)
+
     def lv(self, model: str, fit_start: int, extend: int) -> dict:
         with self.lock:
             return lv.compare(self.sim, model, fit_start, extend)
@@ -175,6 +181,8 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/api/reset":
                 APP.reset(body)
                 self._json(APP.state())
+            elif u.path == "/api/perturb":
+                self._json(APP.perturb(body.get("species", "prey"), body.get("fraction", -0.5)))
             elif u.path == "/api/evo/start":
                 self._json(command.start(body))
             elif u.path == "/api/evo/stop":

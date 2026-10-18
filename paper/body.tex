@@ -1,0 +1,213 @@
+%=====================================================================
+\section{Introduction}
+%=====================================================================
+Predator--prey interactions are the textbook example of a nonlinear dynamic system. The Lotka--Volterra
+(LV) equations \cite{lotka1925,volterra1926} predict neutral cycles around an equilibrium whose prey level is
+set by predator parameters and vice versa. Their structural fragility is equally classic: adding prey
+self-limitation turns the centre into a stable focus, a saturating (type~II) functional response can
+destabilise it into a limit cycle \cite{rosenzweig1963}, and enrichment of the prey's resource pushes the
+system across that boundary, the \emph{paradox of enrichment} \cite{rosenzweig1971}. Real and simulated
+populations add two ingredients the ODEs ignore: demographic noise, which can sustain oscillations in an
+otherwise damped system \cite{mckane2005}, and space, which lets local extinctions be recolonised and was
+shown experimentally to permit persistence \cite{huffaker1958}. Lattice predator--prey models have long been
+used to study these effects \cite{durrett1994,pascual1999}, and individual-based teaching models such as the
+NetLogo wolf--sheep model \cite{wilensky1997} are widely used in classrooms.
+
+This paper uses a deliberately simple lattice ABM for a different purpose: to make the vocabulary of
+systems and control---state, feedback loop, equilibrium, stability, delay, nonlinearity, model reduction,
+open- versus closed-loop control, and objective design for optimisation---\emph{measurable} in a single
+system that students can run in a browser. We ask three questions.
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Dynamics.} Which qualitative regimes do the rules produce, and how do they depend on the
+        predator starvation time $N$, the resource regrowth time $R$ and system size?
+  \item \textbf{Reduction.} When does a two- or three-variable LV model, with rates estimated from the
+        ABM's own event counts, describe the agent dynamics, and what does it miss?
+  \item \textbf{Control.} With harvesting as the input, how do open-loop (constant quota, constant
+        effort) and closed-loop (proportional feedback) policies trade yield against stability?
+\end{enumerate}
+We complement parameter sweeps with an evolutionary quality-diversity search over 18 parameters, which
+also illustrates a lesson every control engineer learns: optimisers exploit the objective you wrote, not
+the one you meant.
+
+%=====================================================================
+\section{Model}
+%=====================================================================
+The world is an $L\times L$ torus ($L=200$ unless stated). Each cell has a \emph{vegetation layer}
+(grown or regrowing; a fraction of cells may be barren) and an \emph{animal layer} holding at most one
+animal: empty, prey or predator. Animals carry a hunger counter and an age. One tick executes, in order:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Regrowth.} A grazed fertile cell regrows exactly $R$ ticks later.
+  \item \textbf{Movement.} Prey, then predators, move to a free Moore neighbour. With probability $0.7$ the
+        move is directed: prey maximise local vegetation minus $5\times$ local predator density
+        (sensing radius 3); predators maximise local prey density (radius 4). Otherwise the move is random.
+  \item \textbf{Predation.} Each predator kills prey in its Moore neighbourhood, at most one per tick
+        (satiation).
+  \item \textbf{Grazing.} Each prey eats up to $K$ grown cells in its $3\times3$ neighbourhood (own cell first);
+        it is \emph{fed} if it ate $K$ ($K=1$ here).
+  \item \textbf{Hunger and ageing.} Unfed prey increment hunger and die at $S$ ($=6$); predators without a kill
+        increment hunger and die at $N$ ($=12$ by default). Optional maximum ages.
+  \item \textbf{Reproduction.} A fed prey reproduces with probability $0.08$, a predator that killed with
+        probability $0.3$, into a random free neighbour.
+  \item \textbf{Harvest (control input).} $u$ animals of the harvested species are removed at random:
+        constant effort $u=\mathrm{Bin}(n,E)$, constant quota $u=\min(Q,n)$, or proportional feedback
+        $u=\mathrm{clip}\big(\lfloor K_p(n-r)\rceil,\,0,\,n\big)$ with set point $r$, switched on at a given tick.
+\end{enumerate}
+Initial densities are $60\%$ vegetation, $6\%$ prey and $1\%$ predators. Conflicts (two agents targeting one
+cell) are resolved in random order; runs are reproducible from a seed. The model is vectorised in NumPy
+($\approx\!3$\,ms per tick at $200^2$). We record per tick the counts $x$ (prey), $y$ (predators), $v$
+(vegetation) and every event: births, kills, starvation, age deaths, cells grazed and regrown, and harvest.
+The event identity $x_{t+1}=x_t+\text{births}-\text{kills}-\text{starved}-\text{aged}-\text{harvested}$ is
+checked by the test suite.
+
+%=====================================================================
+\section{Methods}
+%=====================================================================
+\paragraph{Metrics.} Statistics use the second half of each run (after the transient): mean, coefficient
+of variation (CV, oscillation amplitude), dominant period (first autocorrelation maximum after the first
+zero crossing, accepted if $>0.1$), predator lag (argmax of the prey--predator cross-correlation), and
+outcome (coexistence, predator extinction, total extinction). Periods are reported only for coexisting runs
+with prey CV $\ge 0.05$. Unless stated, each condition uses 5--10 seeds and 3000 ticks.
+
+\paragraph{LV family and event-based fitting.} With $x,y,v$ as densities per cell, we consider
+classic LV ($\dot x=ax-bxy$, $\dot y=cbxy-gy$), logistic LV ($ax\to rx(1-x/K)$), Rosenzweig--MacArthur
+(RM; $bxy\to axy/(1+ahx)$), and a three-level chain
+$\dot v=\rho(V-v)-evx$, $\dot x=\varepsilon evx-\mu x-bxy$, $\dot y=cbxy-gy$.
+Instead of fitting trajectories, which drift out of phase for noisy cycles, each rate is a regression of the
+matching event count on the pre-tick state, e.g.\ kills $\approx b\,x\,y$, predator births $\approx c\cdot$kills,
+predator deaths $\approx g\,y$ (RM via Gauss--Newton). Unit tests recover known rates exactly from synthetic
+histories. Models are integrated (RK4) from the ABM's initial state, and equilibria are classified by the
+eigenvalues of the numerical Jacobian, giving a predicted period $2\pi/\mathrm{Im}\,\lambda$ and damping time
+$-1/\mathrm{Re}\,\lambda$. We also derive, without fitting, a \emph{mean-field map} that applies the exact
+rules to a well-mixed population (binomial neighbourhoods, hunger-class structure, delayed regrowth).
+
+\paragraph{Experiments.} E1: seven regimes (Table~\ref{tab:regimes}). E2: $N\in[2,60]$, 17 values $\times$ 6
+seeds. E3: $R\in[4,60]$ for $N=12$ and $30$. E4: $L\in[40,280]$ in two regimes, 10 seeds. E5:
+quality-diversity search. E6: harvesting (effort, quota, feedback, open vs closed loop). E7: full model
+comparison in two regimes. E8: shocks ($-50\%$ predators) at $t=1500$, 16 seeds per condition.
+
+\paragraph{Optimisation.} A genome is a vector of 18 parameters in the unit hypercube (vegetation, prey and
+predator traits, initial densities). Each genome is simulated on 3 training seeds (common random numbers),
+$100^2$ cells, 1500 ticks. Fitness for \emph{robust coexistence} is mean survival fraction
+$+\,0.5\times$resilience (minimum/mean population after the transient) $-0.25\times$ the std of survival.
+MAP-Elites \cite{mouret2015} keeps the fittest genome in each cell of a $12\times12$ behaviour grid
+(prey CV $\times$ prey period); offspring arise by BLX-$\alpha$ crossover and Gaussian mutation of archive
+members. The top genomes are re-validated on 10 hold-out seeds. A target-free objective is also offered for
+harvest yield (Sec.~\ref{sec:yield}).
+
+%=====================================================================
+\section{Results}
+%=====================================================================
+\subsection{Regimes}
+The rules produce a rich set of behaviours (Fig.~\ref{fig:regimes}, Table~\ref{tab:regimes}). With default
+parameters the populations settle to a noisy equilibrium of $\approx\StablePrey$ prey and $\StablePred$
+predators (prey CV \StableCV). Raising $N$ from 12 to 30 produces sustained cycles (CV \CycleCV, period
+$\approx\CyclePeriod$ ticks) in which predators lag prey by $\approx\CycleLag$ ticks, close to the quarter
+period expected for LV dynamics. Spatially, the cycles appear as travelling fronts of prey invading
+vegetation and predators following them (Fig.~\ref{fig:snapshots}). Cutting the predation loop ($N=3$)
+leaves prey limited only by vegetation at $\approx\PreyOnlyK$; overly efficient predators eat all prey and
+then starve.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=\linewidth]{snapshots.pdf}
+\caption{Cycling regime ($N=30$). Grid snapshots (green vegetation, brown regrowing soil, yellow prey, red
+predators) during one cycle and the corresponding population curves.}
+\label{fig:snapshots}
+\end{figure*}
+
+\begin{table*}[!tp]
+\centering\small
+\caption{Regimes (E1): $200^2$ cells, 3000 ticks, 6 seeds. Means and CV over the second half; period
+only where prey CV$\ge0.1$ (visible oscillations). ``Prey only'' has no predators by design;
+for total extinction the extinction tick is given.}
+\label{tab:regimes}
+\begin{tabular}{llrrrrr}
+\toprule
+Regime & Change from defaults & Typical outcome & Prey & Predators & Prey CV & Period \\
+\midrule
+\tabinput{table_regimes.tex}
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=\linewidth]{regimes.pdf}
+\caption{Time series (left; vegetation on the right axis) and phase portraits (right; grey early, blue late)
+for five regimes.}
+\label{fig:regimes}
+\end{figure}
+
+\subsection{Predator starvation time sets the regime}
+Figure~\ref{fig:starve} sweeps $N$. Coexistence is certain for $\NcoexMin\le N\le\NcoexMax$. For
+$N\le\NpredExt$ predators cannot bridge the time between kills and go extinct, after which prey sit at the
+vegetation-limited carrying capacity. At $N=\NoverMin$ only \NoverPcoex\% of seeds coexist: long-lived
+predators overshoot and collapse their food supply (overexploitation).
+
+Inside the window, mean prey fall from \PreyNtwelve{} at $N=12$ to \PreyNforty{} at $N=40$ while predators
+saturate at $\approx\PredPlateau$. This is the LV signature: the prey equilibrium $x^\ast=g/(cb)$ depends on the
+predator death rate $g$, which falls with $N$, whereas $y^\ast$ is set by prey production. The equilibria of
+the fitted chain model reproduce the ABM means with a mean error of \EqErrMean\% (maximum \EqErrMax\%;
+Fig.~\ref{fig:starve}b).
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.85\linewidth]{starve_sweep.pdf}
+\caption{Sweep of predator starvation time $N$ (E2; 6 seeds per point, 3000 ticks, $200^2$).
+(a) Outcomes. (b) Mean populations vs equilibria of the fitted chain model (dashed). (c) Oscillation
+amplitude. (d) Cycle period of the ABM vs the eigenvalue predictions of the fitted RM and chain models.}
+\label{fig:starve}
+\end{figure*}
+
+\subsection{Damped models, sustained cycles}\label{sec:quasi}
+The oscillation amplitude grows smoothly with $N$, from a prey CV of \CVlow{} to \CVhigh{}
+(Fig.~\ref{fig:starve}c); there is no sharp onset. Every fitted logistic, RM and chain model in the window
+has a \emph{stable focus}, i.e.\ predicts that oscillations decay. Table~\ref{tab:lv} and Fig.~\ref{fig:lv}
+show the cycling regime in detail: all fitted models get the means right, the deterministic ones relax to
+equilibrium, and classic LV oscillates only because it is neutrally stable, with an amplitude (CV
+\CclassicCV) that depends on initial conditions rather than dynamics. The ABM's cycles are therefore best
+understood as \emph{noise-sustained quasi-cycles} \cite{mckane2005}: demographic noise continually excites a
+weakly damped mode. Increasing $N$ weakens predator mortality, which pushes the leading eigenvalue towards the
+imaginary axis (fitted RM damping time \SrmTau{} ticks at $N=12$ vs \CrmTau{} at $N=30$), so the same noise
+produces larger oscillations.
+
+The ABM cycles are also faster: periods of \ABMperLo--\ABMperHi{} ticks for $N\ge15$ against
+\ChainperLo--\ChainperHi{} (chain) and \RMperLo--\RMperHi{} (RM) predicted from the eigenvalues
+(Fig.~\ref{fig:starve}d). ODEs replace the fixed starvation delay by an exponential death rate $g$; a
+constant $g$ explains only $R^2=\CgRsq$ of the per-tick predator deaths. A delayed death process shortens
+the feedback loop's response compared with the exponential approximation of the same mean lifetime.
+
+\begin{table}[!htbp]
+\centering\small\setlength{\tabcolsep}{3.5pt}
+\caption{Cycling regime ($N=30$, seed 42, 3000 ticks): ABM vs models fitted to its events. Stability from
+the Jacobian at equilibrium; period from the eigenvalues where available.}
+\label{tab:lv}
+\begin{tabular}{lcrrrr}
+\toprule
+ & Equil. & Prey & Pred. & CV & Period\\
+\midrule
+\tabinput{table_lv.tex}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=\linewidth]{lv_compare.pdf}
+\caption{ABM (solid) vs models (dashed) in the cycling regime, with phase portraits. Numbers: ABM / model.}
+\label{fig:lv}
+\end{figure}
+
+\subsection{Space is stabilising}
+In a well-mixed population a predator with eight neighbour cells meets prey at rate $\approx 8x$, so
+$b\approx8$. The rate fitted from kills in the ABM is \bLo--\bHi{} across the coexistence window, a
+\bRatio-fold reduction (Fig.~\ref{fig:spatial}): predators deplete their surroundings and must move to
+find new prey, while prey that escape form clusters behind the front. The mean-field map of the same rules,
+which assumes mixing, is wildly oscillatory (prey CV $\ge\MFcvLo$ in the whole window, against \CVlow--\CVhigh{} in
+the ABM) and keeps predators near extinction between outbreaks (mean \SmfPred{} vs \StablePred{} in the
+stable regime). Local depletion thus acts as a distributed negative feedback that the well-mixed
+description lacks \cite{pascual1999}.
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=0.9\linewidth]{spatial_rate.pdf}
+\caption{Predation rate $b$ fitted from ABM kill events vs the well-mixed prediction.}
+\label{fig:spatial}
+\end{figure}
+
+\input{results_rest.tex}

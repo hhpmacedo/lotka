@@ -1,0 +1,9 @@
+preset,L,seed,ticks_run,outcome,prey_extinct_tick,predator_extinct_tick,final_prey,final_predators,final_vegetation,max_prey,max_predators,min_prey_after_transient,min_predators_after_transient,mean_prey,std_prey,cv_prey,mean_predators,std_predators,cv_predators,mean_vegetation,std_vegetation,cv_vegetation,period_prey,period_predators,predator_lag,yield_prey,yield_predators,cells
+stable_coexistence,40,0,200,coexist,-1,-1,114,12,332,142,42,55,11,81.66,12.89,0.1579,23.41,5.77,0.2465,491.29,89.08,0.1813,nan,nan,26,0.0,0.0,1600
+stable_coexistence,40,1,200,coexist,-1,-1,80,21,573,130,43,73,10,96.05,12.03,0.1252,18.48,2.74,0.1482,373.58,74.57,0.1996,33.0,46.0,17,0.0,0.0,1600
+stable_coexistence,80,0,200,coexist,-1,-1,277,90,1956,476,171,277,70,354.72,32.75,0.0923,83.79,6.9,0.0824,1713.01,183.28,0.107,nan,nan,15,0.0,0.0,6400
+stable_coexistence,80,1,200,coexist,-1,-1,408,55,1167,552,164,248,35,334.69,80.36,0.2401,84.04,31.63,0.3764,2078.06,544.2,0.2619,nan,nan,32,0.0,0.0,6400
+lv_cycles,40,0,85,all_extinct,55,85,0,0,1600,142,74,0,0,1.95,3.65,1.8701,43.28,24.47,0.5653,1473.26,152.62,0.1036,nan,nan,-1,0.0,0.0,1600
+lv_cycles,40,1,200,coexist,-1,-1,61,38,477,148,72,5,2,87.5,46.67,0.5334,9.57,10.34,1.0797,617.11,533.13,0.8639,nan,nan,24,0.0,0.0,1600
+lv_cycles,80,0,200,coexist,-1,-1,330,132,1686,597,282,71,3,411.06,143.53,0.3492,31.02,34.6,1.1155,1911.36,1605.11,0.8398,nan,nan,31,0.0,0.0,6400
+lv_cycles,80,1,200,coexist,-1,-1,285,138,1916,552,279,45,2,368.04,148.35,0.4031,33.12,37.38,1.1287,2290.66,1755.36,0.7663,nan,nan,26,0.0,0.0,6400

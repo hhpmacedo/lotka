@@ -1,0 +1,24 @@
+% Shared TikZ figure: causal-loop diagram of the ecosystem (used by paper and guide)
+\begin{tikzpicture}[
+  node distance=2.6cm, >=Stealth,
+  stock/.style={draw, rounded corners=3pt, minimum width=2.3cm, minimum height=0.9cm, font=\small\bfseries, thick},
+  lbl/.style={font=\footnotesize, inner sep=1pt},
+  plusarrow/.style={->, thick, draw=black!70},
+  minusarrow/.style={->, thick, draw=red!70!black, dashed}]
+  \node[stock, fill=green!15]  (V) {Vegetation};
+  \node[stock, fill=yellow!25, right=of V] (X) {Prey};
+  \node[stock, fill=red!15, right=of X] (Y) {Predators};
+  \node[stock, fill=blue!10, below=1.5cm of Y, font=\small] (H) {Harvest (control input $u$)};
+  % food chain
+  \draw[plusarrow] (V) to[bend left=25] node[lbl, above] {$+$ food} (X);
+  \draw[minusarrow] (X) to[bend left=25] node[lbl, below] {$-$ grazing} (V);
+  \draw[plusarrow] (X) to[bend left=25] node[lbl, above] {$+$ food} (Y);
+  \draw[minusarrow] (Y) to[bend left=25] node[lbl, below] {$-$ predation} (X);
+  % self loops
+  \draw[plusarrow] (X.north west) ++(0.25,0) arc[start angle=200, end angle=-20, radius=0.42] node[lbl, pos=0.5, above] {$+$ births};
+  \draw[plusarrow] (V.north west) ++(0.25,0) arc[start angle=200, end angle=-20, radius=0.42] node[lbl, pos=0.5, above] {$+$ regrowth};
+  \draw[minusarrow] (Y.north west) ++(0.25,0) arc[start angle=200, end angle=-20, radius=0.42] node[lbl, pos=0.5, above] {$-$ starvation};
+  \draw[minusarrow] (H) -- node[lbl, right] {$-$ removal} (Y);
+  \draw[minusarrow] (H.west) -| node[lbl, pos=0.75, left] {$-$} (X.south);
+  \draw[->, thin, draw=blue!60, dotted, thick] (Y.south east) to[bend left=50] node[lbl, right, text=blue!60!black] {measure $y$ (feedback)} (H.east);
+\end{tikzpicture}

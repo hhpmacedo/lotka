@@ -1,0 +1,15 @@
+preset,seed,ticks_run,outcome,prey_extinct_tick,predator_extinct_tick,final_prey,final_predators,final_vegetation,max_prey,max_predators,min_prey_after_transient,min_predators_after_transient,mean_prey,std_prey,cv_prey,mean_predators,std_predators,cv_predators,mean_vegetation,std_vegetation,cv_vegetation,period_prey,period_predators,predator_lag,yield_prey,yield_predators,cells
+stable_coexistence,0,200,coexist,-1,-1,209,25,982,281,86,134,25,190.47,37.96,0.1993,42.57,10.78,0.2532,1059.81,316.95,0.2991,nan,nan,27,0.0,0.0,3600
+stable_coexistence,1,200,coexist,-1,-1,253,21,709,275,114,155,18,196.76,25.38,0.129,45.25,11.15,0.2464,1041.45,163.78,0.1573,nan,nan,20,0.0,0.0,3600
+lv_cycles,0,87,all_extinct,57,87,0,0,3600,281,170,0,0,2.18,3.93,1.7999,69.8,56.56,0.8104,3438.66,217.5,0.0633,nan,nan,-1,0.0,0.0,3600
+lv_cycles,1,200,coexist,-1,-1,32,134,2581,277,163,32,9,170.1,77.58,0.4561,49.48,42.94,0.8679,1394.8,789.29,0.5659,nan,nan,32,0.0,0.0,3600
+paradox_of_enrichment,0,200,coexist,-1,-1,2,291,3500,784,293,2,1,362.55,285.9,0.7886,82.94,109.4,1.319,1639.59,1209.42,0.7376,nan,nan,32,0.0,0.0,3600
+paradox_of_enrichment,1,89,all_extinct,59,89,0,0,3600,327,259,0,0,1.56,3.07,1.9712,99.24,97.59,0.9834,3569.09,51.58,0.0145,nan,nan,-1,0.0,0.0,3600
+predator_starvation,0,200,predators_extinct,-1,9,361,0,191,442,43,331,0,373.94,22.43,0.06,0.0,0.0,nan,144.87,38.49,0.2657,21.0,nan,-1,0.0,0.0,3600
+predator_starvation,1,200,predators_extinct,-1,16,346,0,162,427,44,331,0,367.5,21.79,0.0593,0.0,0.0,nan,146.51,38.71,0.2642,22.0,nan,-1,0.0,0.0,3600
+overexploitation,0,57,all_extinct,17,57,0,0,3600,216,239,0,0,0.0,0.0,nan,153.28,94.65,0.6175,3595.1,13.9,0.0039,nan,nan,-1,0.0,0.0,3600
+overexploitation,1,58,all_extinct,18,58,0,0,3600,216,212,0,0,0.0,0.0,nan,126.63,89.57,0.7073,3597.67,6.38,0.0018,nan,nan,-1,0.0,0.0,3600
+prey_overpopulation,0,200,predators_extinct,-1,0,89,0,60,972,0,87,0,325.31,280.62,0.8626,0.0,0.0,nan,143.58,189.87,1.3223,42.0,nan,-1,0.0,0.0,3600
+prey_overpopulation,1,200,predators_extinct,-1,0,101,0,85,993,0,93,0,342.35,266.53,0.7785,0.0,0.0,nan,108.75,140.07,1.288,42.0,nan,-1,0.0,0.0,3600
+vegetation_scarcity,0,200,predators_extinct,-1,28,37,0,427,234,51,25,0,42.18,7.74,0.1836,0.0,0.0,nan,377.96,87.86,0.2325,49.0,nan,-1,0.0,0.0,3600
+vegetation_scarcity,1,200,predators_extinct,-1,43,22,0,537,237,46,22,0,41.81,7.62,0.1821,0.0,0.0,nan,421.61,53.66,0.1273,47.0,nan,-1,0.0,0.0,3600

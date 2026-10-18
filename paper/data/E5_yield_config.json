@@ -1,0 +1,49 @@
+{
+  "objective": "yield",
+  "args": {
+    "species": "prey"
+  },
+  "pop": 32,
+  "gens": 20,
+  "seeds": 3,
+  "ticks": 1500,
+  "genes": {
+    "harvest_mode": [
+      1.0,
+      3.0
+    ],
+    "harvest_effort": [
+      0.0,
+      0.1
+    ],
+    "harvest_quota": [
+      0.0,
+      40.0
+    ],
+    "harvest_setpoint": [
+      0.0,
+      1500.0
+    ],
+    "harvest_gain": [
+      0.0,
+      1.0
+    ]
+  },
+  "fixed": {
+    "width": 100,
+    "height": 100,
+    "prey_max_age": 150,
+    "predator_max_age": 300,
+    "harvest_species": 1
+  },
+  "elite": 2,
+  "cx_prob": 0.8,
+  "mut_rate": 0.0,
+  "mut_sigma": 0.12,
+  "validate_top": 5,
+  "validate_seeds": 10,
+  "rng_seed": 0,
+  "out": "runs/evolve/yield_v1",
+  "workers": 8,
+  "require_turnover": true
+}

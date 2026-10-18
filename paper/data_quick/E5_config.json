@@ -1,0 +1,98 @@
+{
+  "objective": "qd",
+  "args": {},
+  "pop": 48,
+  "gens": 25,
+  "seeds": 3,
+  "ticks": 1500,
+  "genes": {
+    "fertile_fraction": [
+      0.2,
+      1.0
+    ],
+    "veg_regrow_time": [
+      2,
+      100
+    ],
+    "prey_food_need": [
+      1,
+      4
+    ],
+    "prey_eat_radius": [
+      0,
+      2
+    ],
+    "prey_starve_time": [
+      1,
+      40
+    ],
+    "prey_repro_prob": [
+      0.0,
+      0.6
+    ],
+    "prey_repro_requires_fed": [
+      0,
+      1
+    ],
+    "prey_sense_radius": [
+      1,
+      6
+    ],
+    "prey_directed_prob": [
+      0.0,
+      1.0
+    ],
+    "prey_fear": [
+      0.0,
+      20.0
+    ],
+    "predator_starve_time": [
+      1,
+      60
+    ],
+    "predator_kill_radius": [
+      1,
+      2
+    ],
+    "predator_max_kills": [
+      1,
+      6
+    ],
+    "predator_repro_prob": [
+      0.0,
+      1.0
+    ],
+    "predator_sense_radius": [
+      1,
+      8
+    ],
+    "predator_directed_prob": [
+      0.0,
+      1.0
+    ],
+    "init_prey": [
+      0.01,
+      0.2
+    ],
+    "init_predator": [
+      0.002,
+      0.05
+    ]
+  },
+  "fixed": {
+    "width": 100,
+    "height": 100,
+    "prey_max_age": 150,
+    "predator_max_age": 300
+  },
+  "elite": 2,
+  "cx_prob": 0.8,
+  "mut_rate": 0.0,
+  "mut_sigma": 0.12,
+  "validate_top": 5,
+  "validate_seeds": 10,
+  "rng_seed": 0,
+  "out": "/home/hhmacedo/projects/lotka/runs/evolve/qd_v2",
+  "workers": 8,
+  "require_turnover": true
+}

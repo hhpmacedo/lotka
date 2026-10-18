@@ -36,8 +36,15 @@ EMPTY, PREY, PREDATOR = 0, 1, 2
 CODE_SOIL, CODE_VEG, CODE_PREY, CODE_PREDATOR, CODE_BARREN = 0, 1, 2, 3, 4
 
 
-def _meta(desc: str, lo: float, hi: float, step: float = 1, group: str = "") -> dict:
-    return {"desc": desc, "min": lo, "max": hi, "step": step, "group": group}
+def _meta(desc: str, lo: float, hi: float, step: float = 1, group: str = "", choices=None) -> dict:
+    m = {"desc": desc, "min": lo, "max": hi, "step": step, "group": group}
+    if choices:
+        m["choices"] = choices
+    return m
+
+
+HARVEST_MODES = {0: "off", 1: "constant effort", 2: "constant quota", 3: "feedback (P-control)"}
+HARVEST_SPECIES = {1: "prey", 2: "predators", 3: "both"}
 
 
 @dataclass
@@ -95,6 +102,23 @@ class Params:
     predator_directed_prob: float = field(default=0.7, metadata=_meta(
         "Probability a predator chases vs moves randomly", 0, 1, 0.05, "Predator"))
 
+    # --- control input: harvesting ---
+    harvest_mode: int = field(default=0, metadata=_meta(
+        "Harvest controller: 0 off, 1 constant effort, 2 constant quota, 3 feedback", 0, 3, 1, "Control",
+        HARVEST_MODES))
+    harvest_species: int = field(default=1, metadata=_meta(
+        "Which species is harvested: 1 prey, 2 predators, 3 both", 1, 3, 1, "Control", HARVEST_SPECIES))
+    harvest_effort: float = field(default=0.02, metadata=_meta(
+        "Effort: fraction of the population removed per tick (mode 1)", 0, 1, 0.005, "Control"))
+    harvest_quota: int = field(default=20, metadata=_meta(
+        "Quota: individuals removed per tick (mode 2)", 0, 10000, 1, "Control"))
+    harvest_setpoint: int = field(default=1500, metadata=_meta(
+        "Feedback target population (mode 3)", 0, 1000000, 10, "Control"))
+    harvest_gain: float = field(default=0.2, metadata=_meta(
+        "Feedback gain Kp: removes Kp x (N - target) per tick (mode 3)", 0, 1, 0.01, "Control"))
+    harvest_start: int = field(default=0, metadata=_meta(
+        "Tick at which the controller switches on", 0, 100000, 10, "Control"))
+
     @classmethod
     def from_dict(cls, d: dict[str, Any] | None) -> "Params":
         p = cls()
@@ -149,7 +173,7 @@ STEP_OFFSETS = moore_offsets(1)  # 8 possible moves
 METRIC_KEYS = ["tick", "prey", "predators", "vegetation",
                "prey_births", "predator_births", "prey_eaten", "prey_starved",
                "predator_starved", "prey_old_age", "predator_old_age", "prey_fed_frac",
-               "veg_eaten", "veg_regrown"]
+               "veg_eaten", "veg_regrown", "harvested_prey", "harvested_predators"]
 
 
 class Simulation:
@@ -341,8 +365,55 @@ class Simulation:
         qr = eligible & (rng.random(len(qys)) < p.prey_repro_prob)
         ev["prey_births"] = self._place_offspring(qys[qr], qxs[qr], PREY)
 
+        # 7. control input: harvesting
+        if p.harvest_mode and self.tick + 1 >= p.harvest_start:
+            for sp, key in ((PREY, "harvested_prey"), (PREDATOR, "harvested_predators")):
+                if p.harvest_species in (sp, 3):
+                    ev[key] = self._harvest(sp)
+
         self.tick += 1
         self.history.append(self._metrics(ev))
+
+    def perturb(self, species: int, fraction: float) -> int:
+        """Instant shock: remove (fraction<0) or add (fraction>0) a fraction of a species' population.
+        Used to probe stability. Returns the change in count. The tick counter does not advance."""
+        ys, xs = self._positions(species)
+        n = len(ys)
+        if fraction < 0:
+            k = int(round(min(-fraction, 1.0) * n))
+            self.animal[ys[:k], xs[:k]] = EMPTY
+            self.hunger[ys[:k], xs[:k]] = 0
+            self.age[ys[:k], xs[:k]] = 0
+            change = -k
+        else:
+            ey, ex = np.nonzero(self.animal == EMPTY)
+            k = min(int(round(fraction * max(n, 1))), len(ey))
+            pick = self.rng.choice(len(ey), size=k, replace=False)
+            self.animal[ey[pick], ex[pick]] = species
+            self.hunger[ey[pick], ex[pick]] = 0
+            self.age[ey[pick], ex[pick]] = 0
+            change = k
+        last = self.history[-1]
+        last["prey"] = int((self.animal == PREY).sum())
+        last["predators"] = int((self.animal == PREDATOR).sum())
+        return change
+
+    def _harvest(self, species: int) -> int:
+        p = self.p
+        ys, xs = self._positions(species)  # random order
+        n = len(ys)
+        if p.harvest_mode == 1:
+            k = int(self.rng.binomial(n, min(max(p.harvest_effort, 0.0), 1.0))) if n else 0
+        elif p.harvest_mode == 2:
+            k = min(p.harvest_quota, n)
+        elif p.harvest_mode == 3:
+            k = int(np.clip(round(p.harvest_gain * (n - p.harvest_setpoint)), 0, n))
+        else:
+            k = 0
+        self.animal[ys[:k], xs[:k]] = EMPTY
+        self.hunger[ys[:k], xs[:k]] = 0
+        self.age[ys[:k], xs[:k]] = 0
+        return k
 
     # ------------------------------------------------------------------ output
     def _metrics(self, ev: dict[str, float]) -> dict[str, float]:

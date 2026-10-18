@@ -1,0 +1,9 @@
+species,quota,seed,ticks_run,outcome,prey_extinct_tick,predator_extinct_tick,final_prey,final_predators,final_vegetation,max_prey,max_predators,min_prey_after_transient,min_predators_after_transient,mean_prey,std_prey,cv_prey,mean_predators,std_predators,cv_predators,mean_vegetation,std_vegetation,cv_vegetation,period_prey,period_predators,predator_lag,yield_prey,yield_predators,cells
+prey,0,0,200,coexist,-1,-1,209,25,982,281,86,134,25,190.47,37.96,0.1993,42.57,10.78,0.2532,1059.81,316.95,0.2991,nan,nan,27,0.0,0.0,3600
+prey,0,1,200,coexist,-1,-1,253,21,709,275,114,155,18,196.76,25.38,0.129,45.25,11.15,0.2464,1041.45,163.78,0.1573,nan,nan,20,0.0,0.0,3600
+prey,40,0,200,coexist,-1,-1,209,25,982,281,86,134,25,190.47,37.96,0.1993,42.57,10.78,0.2532,1059.81,316.95,0.2991,nan,nan,27,0.0,0.0,3600
+prey,40,1,200,coexist,-1,-1,253,21,709,275,114,155,18,196.76,25.38,0.129,45.25,11.15,0.2464,1041.45,163.78,0.1573,nan,nan,20,0.0,0.0,3600
+predators,0,0,200,coexist,-1,-1,209,25,982,281,86,134,25,190.47,37.96,0.1993,42.57,10.78,0.2532,1059.81,316.95,0.2991,nan,nan,27,0.0,0.0,3600
+predators,0,1,200,coexist,-1,-1,253,21,709,275,114,155,18,196.76,25.38,0.129,45.25,11.15,0.2464,1041.45,163.78,0.1573,nan,nan,20,0.0,0.0,3600
+predators,8,0,200,coexist,-1,-1,209,25,982,281,86,134,25,190.47,37.96,0.1993,42.57,10.78,0.2532,1059.81,316.95,0.2991,nan,nan,27,0.0,0.0,3600
+predators,8,1,200,coexist,-1,-1,253,21,709,275,114,155,18,196.76,25.38,0.129,45.25,11.15,0.2464,1041.45,163.78,0.1573,nan,nan,20,0.0,0.0,3600

@@ -32,11 +32,43 @@ def test_counts_consistent_with_events():
         before = s.history[-1]
         s.step()
         h = s.history[-1]
-        assert h["prey"] == before["prey"] + h["prey_births"] - h["prey_eaten"] - h["prey_starved"] - h["prey_old_age"]
-        assert h["predators"] == before["predators"] + h["predator_births"] - h["predator_starved"] - h["predator_old_age"]
+        assert h["prey"] == (before["prey"] + h["prey_births"] - h["prey_eaten"] - h["prey_starved"]
+                             - h["prey_old_age"] - h["harvested_prey"])
+        assert h["predators"] == (before["predators"] + h["predator_births"] - h["predator_starved"]
+                                  - h["predator_old_age"] - h["harvested_predators"])
         # state arrays stay clean on empty cells
         empty = s.animal == EMPTY
         assert (s.hunger[empty] == 0).all() and (s.age[empty] == 0).all()
+
+
+def test_counts_consistent_with_harvest():
+    s = Simulation(small(width=60, height=60, harvest_mode=1, harvest_species=3, harvest_effort=0.05))
+    for _ in range(60):
+        before = s.history[-1]
+        s.step()
+        h = s.history[-1]
+        assert h["prey"] == (before["prey"] + h["prey_births"] - h["prey_eaten"] - h["prey_starved"]
+                             - h["prey_old_age"] - h["harvested_prey"])
+        assert h["predators"] == (before["predators"] + h["predator_births"] - h["predator_starved"]
+                                  - h["predator_old_age"] - h["harvested_predators"])
+
+
+def test_harvest_modes():
+    # quota: exactly Q per tick while available
+    s = Simulation(small(width=60, height=60, harvest_mode=2, harvest_species=1, harvest_quota=7))
+    s.step()
+    assert s.history[-1]["harvested_prey"] == 7 and s.history[-1]["harvested_predators"] == 0
+    # feedback: removes Kp*(N - setpoint), never negative
+    s = Simulation(small(width=60, height=60, harvest_mode=3, harvest_species=2, harvest_gain=1.0,
+                         harvest_setpoint=10))
+    s.step()
+    assert s.history[-1]["predators"] <= 10 + s.history[-1]["predator_births"]
+    # start tick
+    s = Simulation(small(harvest_mode=1, harvest_effort=1.0, harvest_start=5))
+    s.step(4)
+    assert sum(h["harvested_prey"] for h in s.history) == 0
+    s.step(1)
+    assert s.history[-1]["prey"] == 0
 
 
 def test_predators_starve_exactly_after_N_ticks():
@@ -140,3 +172,14 @@ def test_batch_runs(tmp_path):
 def test_batch_rejects_unknown_param(tmp_path):
     with pytest.raises(SystemExit):
         batch_main(["--set", "nope=1", "--out", str(tmp_path)])
+
+
+def test_perturb():
+    s = Simulation(small(width=50, height=50))
+    n0 = s.history[-1]["prey"]
+    s.perturb(PREY, -0.5)
+    assert s.history[-1]["prey"] == n0 - round(0.5 * n0)
+    n1 = s.history[-1]["predators"]
+    s.perturb(PREDATOR, 1.0)
+    assert s.history[-1]["predators"] == 2 * n1
+    assert (s.hunger[s.animal == EMPTY] == 0).all()

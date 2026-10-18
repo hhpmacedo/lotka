@@ -49,6 +49,13 @@
     <label>Ticks/frame <select id="speed"><option>1</option><option selected>2</option><option>5</option><option>10</option><option>25</option><option>50</option></select></label>
     <label>Zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
   </div>
+  <div class="ctrls" title="Instant shocks: test whether the system returns to where it was (stability)">
+    <span style="color:var(--mut);font-size:12px;align-self:center">Shock:</span>
+    <button class="shock" data-s="prey" data-f="-0.5">−50% prey</button>
+    <button class="shock" data-s="prey" data-f="1">+100% prey</button>
+    <button class="shock" data-s="predators" data-f="-0.5">−50% pred.</button>
+    <button class="shock" data-s="predators" data-f="1">+100% pred.</button>
+  </div>
   <div class="ctrls">
     <label>Preset <select id="preset"><option value="">— choose a template —</option></select></label>
   </div>
@@ -132,11 +139,13 @@ function buildParams(current) {
     for (const s of items) {
       const row = document.createElement('div'); row.className = 'param';
       const v = current[s.name];
-      const input = s.type === 'bool'
+      const input = s.choices
+        ? `<select id="p-${s.name}" style="width:90px;background:#0f1317;color:var(--fg);border:1px solid var(--line);border-radius:4px">${Object.entries(s.choices).map(([k, l]) => `<option value="${k}" ${+k === +v ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+        : s.type === 'bool'
         ? `<input type="checkbox" id="p-${s.name}" ${v ? 'checked' : ''}>`
         : `<input type="number" id="p-${s.name}" value="${v}" min="${s.min}" max="${s.max}" step="${s.step}">`;
       row.innerHTML = `<label for="p-${s.name}" title="${s.name}">${s.name.replace(/_/g, ' ')}</label>${input}<div class="d">${s.desc}</div>`;
-      const el = row.querySelector('input');
+      const el = row.querySelector('input, select');
       el.addEventListener('input', () => row.classList.toggle('changed', readOne(s) !== current[s.name]));
       div.appendChild(row);
     }
@@ -365,6 +374,16 @@ $('randseed').onclick = () => { $('p-seed').value = Math.floor(Math.random() * 2
 $('defaults').onclick = () => { const d = {}; for (const s of schema) d[s.name] = s.default; reset(d); };
 for (const id of ['zoom', 'win', 'logy']) $(id).addEventListener('change', draw);
 $('lvbtn').onclick = fitLV;
+document.querySelectorAll('.shock').forEach(b => b.onclick = async () => {
+  try {
+    const st = await api('/api/perturb', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ species: b.dataset.s, fraction: +b.dataset.f }) });
+    // replace the last history row (counts changed by the shock) and redraw
+    const last = st.history[st.history.length - 1]; if (last && hist.length) hist[hist.length - 1] = last;
+    lastGrid = Uint8Array.from(atob(st.grid), c => c.charCodeAt(0)); draw();
+    setStatus(`shock applied at tick ${st.tick}: ${b.textContent}`);
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
 $('lvmodel').addEventListener('change', fitLV);
 let presets = {};
 $('preset').addEventListener('change', () => {

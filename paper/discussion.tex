@@ -1,0 +1,54 @@
+%=====================================================================
+\FloatBarrier
+\section{Discussion}
+%=====================================================================
+\paragraph{What the reduction gets right and wrong.} Rates estimated from event counts produce LV-type
+models that reproduce the ABM's mean populations, and with them the counter-intuitive structural
+predictions of LV theory: prey abundance is controlled by predator traits, harvesting prey lowers predators,
+harvesting both raises prey, and a pulse perturbation in the stable regime decays on the time scale given by
+the Jacobian's eigenvalues. Equilibria and their local stability are therefore robust, transferable
+properties. The reduction fails in three places, each of which corresponds to a modelling assumption that
+students can name: (i) oscillation \emph{amplitude}, because deterministic models discard demographic noise,
+which sustains quasi-cycles around a stable focus; (ii) oscillation \emph{period}, because a fixed
+starvation delay is replaced by exponential mortality; and (iii) \emph{well-mixing}, which inflates the
+encounter rate several-fold and turns a stable spatial system into a violently oscillating mean field.
+
+\paragraph{Space and noise pull in opposite directions.} Local depletion lowers the effective predation
+rate and stabilises; demographic noise excites the weakly damped mode and destabilises by deepening
+troughs. Which wins depends on system size (Fig.~\ref{fig:size}) and on how close the mode is to the
+imaginary axis, which is set by predator persistence $N$ and resource productivity $R$. The coexistence
+region in $(N,R)$ is accordingly bounded on all sides: too little predator persistence or too little food
+leads to predator extinction; too much persistence or too much food leads to boom--bust cycles whose troughs
+are fatal in a finite world.
+
+\paragraph{Control lessons.} The harvesting experiments reproduce in a few minutes of simulation several
+lessons usually taught with linear models: open-loop policies are only as good as the model behind them and
+can fail catastrophically (quota); proportional feedback rejects disturbances and damps oscillations but
+leaves a steady-state error; actuator constraints (one-sided harvesting) open the loop; and regulating one
+output can destabilise an unobserved internal state. Feedback achieved a several-fold steadier ecosystem
+than constant effort at the same yield, a quantitative argument for state-dependent management rules
+\cite{clark1990}.
+
+\paragraph{Optimisation as an experimental tool.} Quality-diversity search is useful not only to find
+parameters but to map the trade-offs a system permits; here, between amplitude and robustness. Its
+first result was also a warning: the optimiser satisfied the letter of ``both species survive'' with an
+ecosystem in which nothing happened. Writing objectives that encode the intended dynamics (turnover,
+finite lifespans) is part of the modelling.
+
+\paragraph{Limitations.} The rules are deliberately minimal: no sex, age structure, energy budgets or
+evolution of traits, a single vegetation type and fixed sensing radii. Seeds per condition (5--10) resolve
+the large effects reported here but not fine structure, e.g.\ the exact location of the coexistence
+boundaries. Periods are estimated from the autocorrelation of 1500-tick windows and are uncertain by roughly
+10\%. The comparison models are fitted to single runs.
+
+%=====================================================================
+\section{Conclusion}
+%=====================================================================
+A lattice with three rules per species reproduces the core phenomena of predator--prey theory---coupled
+oscillations with predators lagging prey, top-down control of prey abundance, the paradox of enrichment,
+overexploitation and Volterra's harvesting principle---and exposes where the classical equations fall short:
+noise-sustained amplitude, delay-shortened periods and spatial stabilisation. Treating harvest as an input
+turns the same system into a control laboratory in which open- and closed-loop strategies, steady-state error,
+saturation and hidden-state instability can be measured directly. All experiments are reproducible with
+\texttt{python -m experiments.exp all} and the companion guide turns them into exercises for first-year
+systems and control students.

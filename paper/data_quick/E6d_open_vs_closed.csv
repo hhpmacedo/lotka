@@ -1,0 +1,5 @@
+controller,value,seed,ticks_run,outcome,prey_extinct_tick,predator_extinct_tick,final_prey,final_predators,final_vegetation,max_prey,max_predators,min_prey_after_transient,min_predators_after_transient,mean_prey,std_prey,cv_prey,mean_predators,std_predators,cv_predators,mean_vegetation,std_vegetation,cv_vegetation,period_prey,period_predators,predator_lag,yield_prey,yield_predators,cells
+effort,0.005,0,200,coexist,-1,-1,193,68,775,339,159,58,1,245.8,74.95,0.3049,16.92,16.8,0.9931,885.0,804.45,0.909,nan,nan,32,0.0,0.06930693069306931,3600
+effort,0.005,1,200,coexist,-1,-1,145,101,1382,303,152,27,4,200.37,79.86,0.3986,28.14,26.18,0.9304,1303.17,938.11,0.7199,nan,nan,28,0.0,0.12871287128712872,3600
+feedback,500,0,200,coexist,-1,-1,211,56,880,338,169,17,1,199.09,105.65,0.5307,14.19,16.33,1.151,1397.32,1182.89,0.8465,nan,nan,22,0.0,0.0,3600
+feedback,500,1,200,predators_extinct,-1,97,315,0,263,340,172,37,0,247.75,90.5,0.3653,0.0,0.0,nan,948.05,1013.41,1.0689,nan,nan,-1,0.0,0.0,3600

@@ -1,0 +1,19 @@
+We study a spatial, stochastic agent-based model (ABM) of a vegetation--prey--predator food chain on a
+toroidal lattice as a test bed for core ideas of dynamic systems and control. The rules are minimal:
+predators kill adjacent prey and starve after $N$ ticks without food, prey must graze $K$ vegetation cells
+per tick and starve after $S$ underfed ticks, and grazed cells regrow after $R$ ticks. We compare the ABM
+with five Lotka--Volterra (LV) type descriptions whose rates are estimated directly from per-tick event
+counts, and add harvesting as a control input. Across a sweep of the predator starvation time, both
+species coexist for $\NcoexMin \le N \le \NcoexMax$ ticks; below this window predators die out, above it they
+overexploit their prey. Fitted LV equilibria reproduce the ABM's mean populations to within
+\EqErrMean\% on average, including the classical result that prey abundance is set by predator traits.
+Yet every fitted deterministic model predicts damped oscillations, whereas the ABM sustains cycles whose
+amplitude grows smoothly with $N$ (prey coefficient of variation \CVlow{} to \CVhigh{}): the cycles are
+noise-sustained quasi-cycles, and their period is shorter than any fitted model predicts. Spatial structure
+lowers the effective predation rate \bRatio-fold relative to the well-mixed limit, and the well-mixed
+mean-field of the same rules oscillates violently, so space is strongly stabilising. A quality-diversity
+search over 18 parameters exposes a robustness--amplitude trade-off and a specification-gaming failure
+mode (immortal, non-reproducing predators) that had to be excluded from the objective. Finally,
+open-loop quota harvesting collapses the ecosystem abruptly beyond a critical quota, constant-effort
+harvesting degrades gracefully, and proportional feedback on the predator population suppresses the
+predator--prey cycles at a given yield. All code and data are open.

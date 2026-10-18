@@ -1,0 +1,102 @@
+\subsection{Harvest control}\label{sec:control}
+We now treat harvesting as the control input $u$ (Fig.~\ref{fig:loops}) acting on the stable regime
+(open loop) and on the cycling regime (closed loop).
+
+\begin{figure}[!htbp]
+\centering\resizebox{\linewidth}{!}{\input{loops.tex}}
+\caption{Causal-loop view of the ecosystem with harvest as control input. Solid: reinforcing ($+$);
+dashed: opposing ($-$); dotted: measurement used by feedback control.}
+\label{fig:loops}
+\end{figure}
+
+\paragraph{Constant effort and the Volterra principle.} Removing a fixed fraction $E$ per tick behaves as
+LV theory predicts (Fig.~\ref{fig:effort}). Harvesting prey does not lower the prey level: it
+\emph{lowers predators} (from \HzeroPred{} to \PreyHpred{} at $E=0.01$) while prey stay at or slightly above
+their unharvested level (\PreyHprey{} vs \HzeroPrey), because $x^\ast=g/(cb)$ does not contain the prey's
+growth rate. Harvesting both species at $E=\VoltE$ raises prey to \VoltPrey{} and cuts predators to
+\VoltPred: Volterra's explanation for the rise of predatory fish when Adriatic fishing stopped during the
+First World War \cite{volterra1926}. The largest prey yield compatible with coexistence in every seed is
+\MSYXyield{} prey/tick at $E=\MSYXeffort$; from $E=\EcollX$ predators are lost, after which the prey-only
+system follows a Schaefer curve \cite{schaefer1954} with maximum yield \FreeXyield{} at $E=\FreeXeffort$.
+The predator yield peaks at \MSYYyield{} per tick ($E=\MSYYeffort$), and predators vanish from
+$E=\EcollY$.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.95\linewidth]{harvest_effort.pdf}
+\caption{Constant-effort harvesting in the stable regime (E6a; 5 seeds, 3000 ticks). (a) Yield vs effort.
+(b,c) Mean populations vs effort when harvesting prey and both species; dashed: logistic-LV
+equilibrium calibrated without harvest, valid only while predators persist.}
+\label{fig:effort}
+\end{figure*}
+
+\paragraph{Constant quota: abrupt collapse.} A quota $Q$ ignores the state. Up to $Q=\QmaxX$ prey/tick
+(switched on at $t=500$) the system absorbs it, yielding exactly $Q$ with predators reduced to
+\QmaxXpred{} (Fig.~\ref{fig:quota}). One step further, at $Q=\QcollX$, only \QcollXp\% of seeds survive,
+and at $Q=80$ both species are extinct in every seed. The quota sustains a higher yield than constant effort
+(\QmaxX{} vs \MSYXyield) precisely because it keeps taking when the stock declines, which is also why its
+failure is total rather than gradual: the harvested fraction $Q/x$ grows as $x$ falls, a destabilising
+feedback \cite{clark1990}. Effort harvesting has the opposite, stabilising feedback built in; past its limit
+it loses the predators but the prey persist. For predators the safe quota is \QmaxY{} per tick and
+$Q=\QcollY$ is already lethal.
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=\linewidth]{harvest_quota.pdf}
+\caption{Constant-quota harvesting (E6b; 5 seeds; quota from $t=500$): realised yield and probability of
+coexistence.}
+\label{fig:quota}
+\end{figure}
+
+\paragraph{Proportional feedback suppresses cycles.} In the cycling regime we switch on
+$u=K_p\,\max(y-r,0)$ on predators at $t=1500$ (Fig.~\ref{fig:feedback}). Even a small gain is effective:
+with $r=\FBsetA$ the predator CV after switch-on falls from \FBAcvZero{} to \FBAcvTwo{} at $K_p=0.2$ and
+the prey CV from \FBAcvpZero{} to \FBAcvpTwo, with coexistence in all seeds. The controller caps predator
+peaks, removing the delayed overshoot that drives the cycle; prey, though not measured, are stabilised
+through the coupling. Three textbook features of feedback \cite{astrom2008} appear. First, a
+\emph{steady-state error}: the predator mean is \FBAmeanSmall{} at $K_p=0.02$, \FBAmeanTwo{} at $K_p=0.2$
+and \FBAmeanOne{} at $K_p=1$ against a target of \FBsetA. Second, \emph{actuator saturation}: harvesting
+can only remove animals, so below the target the loop is open. Third, a gain--effort trade-off: the
+harvest the controller must take grows with gain and saturates around \FBAyieldTwo{} predators/tick.
+
+Controlling the prey instead reveals a hidden-state hazard: holding prey at $r=800$ with $K_p\ge0.5$
+drives predators extinct in every seed, because the target lies below the prey density predators need to
+break even. A set point on one state variable can destroy an unmeasured one---the ecological analogue of
+unstable internal dynamics behind a well-regulated output.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.95\linewidth]{feedback.pdf}
+\caption{Proportional feedback on predators in the cycling regime (on at $t=1500$; E6c, 5 seeds,
+4000 ticks): controlled output, prey, post-switch CV vs gain, and harvest taken.}
+\label{fig:feedback}
+\end{figure*}
+
+\paragraph{Open versus closed loop at equal yield.} Comparing constant predator effort with feedback
+($K_p=0.2$, varying $r$; E6d, both from $t=0$) at matched predator yields of \ODyLo--\ODyHi{} per tick, the
+feedback policy leaves a prey CV that is on average \ODratio{} times that of the open-loop policy
+(Fig.~\ref{fig:openclosed}). Constant effort also damps cycles, since it adds predator mortality, but never
+brings the prey CV below \ODeffCVmin{} in the tested range, whereas feedback reaches \ODfbCVmin.
+
+\begin{figure}[!htbp]
+\centering\includegraphics[width=0.85\linewidth]{open_vs_closed.pdf}
+\caption{Prey variability vs predator yield for open-loop constant effort and closed-loop proportional
+control, cycling regime (E6d; 5 seeds).}
+\label{fig:openclosed}
+\end{figure}
+
+\subsection{Stability probe}
+Removing half of the predators at $t=1500$ (Fig.~\ref{fig:shocks}) produces, in the stable regime, a prey
+outbreak peaking $\approx\ShockSpreyPeak$ above control after \ShockSpreyPeakT{} ticks, and the deviation
+envelope decays by a factor $e$ in $\approx\ShockStau$ ticks (\ShockSn{} seeds). The fitted chain model
+predicts a damping time of \ShockModelTau{} ticks: the impulse response measured on agents and the
+eigenvalue computed from the reduced model agree. In the cycling regime the same shock does not simply
+decay: it resets the phase of the cycle in all seeds at once, and the mean deviation keeps oscillating for
+the full 900 observed ticks (Fig.~\ref{fig:shocks}b), the signature of a very weakly damped oscillatory
+mode---consistent with the noise-sustained cycles of Sec.~\ref{sec:quasi}.
+
+\begin{figure*}[!tp]
+\centering\includegraphics[width=0.95\linewidth]{shocks.pdf}
+\caption{Mean response (16 seeds) to removing 50\% of predators or doubling prey at $t=1500$, relative to
+unshocked runs with the same seeds.}
+\label{fig:shocks}
+\end{figure*}
+
+\input{results_yield.tex}

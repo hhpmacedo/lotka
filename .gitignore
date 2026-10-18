@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 runs/
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc

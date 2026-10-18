@@ -1,0 +1,37 @@
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage[margin=1.8cm,columnsep=0.6cm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx,booktabs,xcolor,microtype,enumitem}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\usepackage{caption}
+\usepackage{placeins}
+\renewcommand{\topfraction}{0.9}\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\bottomfraction}{0.6}\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}\renewcommand{\dblfloatpagefraction}{0.75}
+\setcounter{topnumber}{3}\setcounter{dbltopnumber}{3}\setcounter{totalnumber}{5}
+\captionsetup{font=small,labelfont=bf}
+\setmainfont{texgyretermes}[Extension=.otf,UprightFont=*-regular,BoldFont=*-bold,ItalicFont=*-italic,BoldItalicFont=*-bolditalic]
+\graphicspath{{figures/}{figures_quick/}}
+\input{numbers.tex}
+\makeatletter\newcommand\tabinput[1]{\@@input #1 }\makeatother
+
+\title{\bfseries From agents to equations and back:\\ dynamics, Lotka--Volterra approximations and harvest control\\ in a spatial predator--prey ecosystem}
+\author{Lotka project\thanks{Code, data and every experiment: \url{https://github.com/hhpmacedo/lotka}.}}
+\date{October 2026}
+
+\begin{document}
+\twocolumn[
+\maketitle
+\begin{abstract}
+\input{abstract.tex}
+\end{abstract}
+\vspace{1em}]
+
+\input{body.tex}
+\input{discussion.tex}
+\input{refs.tex}
+
+\end{document}
