@@ -170,6 +170,12 @@ dominant `period_*` (autocorrelation) and `predator_lag` (ticks predator peaks t
 Per-tick metrics: `prey, predators, vegetation, prey_births, predator_births,
 prey_eaten, prey_starved, predator_starved, prey_old_age, predator_old_age, prey_fed_frac`.
 
+## How this was made
+
+**AI assistance.** This study was conducted with AI agents: Hermes Agent (Nous Research) running Anthropic's Claude models. The agents implemented the simulator, designed and ran the experiments, analysed the data and drafted this text under the direction of the author, who defined the research questions. The results have not yet been independently reviewed by the author. All numbers in the text are generated from the released data by `experiments/numbers.py`.
+
+**Acknowledgements.** This project was inspired by an earlier university project on predator-prey dynamics that the author carried out with two university colleagues. They were not involved in this work and have not reviewed or endorsed it; any errors are the author's own.
+
 ## Layout
 
     lotka/__main__.py      `python -m lotka serve|batch|compare|evolve`
