@@ -176,6 +176,12 @@ prey_eaten, prey_starved, predator_starved, prey_old_age, predator_old_age, prey
 
 **Acknowledgements.** This project was inspired by an earlier university project on predator-prey dynamics that the author carried out with two university colleagues. They were not involved in this work and have not reviewed or endorsed it; any errors are the author's own.
 
+## License
+
+- **Code** (the `lotka/`, `experiments/`, `scripts/` and `tests/` source): MIT License, see [LICENSE](LICENSE).
+- **Paper, guide, figures and data** (`paper/`, including `paper/data`, plus `docs/` and the prose of this README): [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/), see [paper/LICENSE](paper/LICENSE).
+  Attribution: "Hugo Macedo, Lotka project, https://github.com/hhpmacedo/lotka".
+
 ## Layout
 
     lotka/__main__.py      `python -m lotka serve|batch|compare|evolve`
