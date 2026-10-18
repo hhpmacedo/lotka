@@ -8,11 +8,74 @@ soil) and an **animal layer** (empty, prey, or predator).
 
     cd ~/projects/lotka
     python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
-    .venv/bin/python -m lotka.server          # dashboard on http://127.0.0.1:8765
+    .venv/bin/python -m lotka serve           # dashboard on http://127.0.0.1:8765
     .venv/bin/python -m pytest -q             # tests
 
-Dashboard: Space = play/pause. Edit parameters on the left, then "Apply & reset".
-"Export CSV" downloads the per-tick metrics of the current run.
+Two levels of use (`python -m lotka` prints the full list):
+
+| level | command | what it does |
+|---|---|---|
+| simulation | `lotka serve` | live dashboard: grid, populations, phase portrait, presets, LV comparison |
+| simulation | `lotka batch` | headless runs and parameter sweeps → CSV |
+| simulation | `lotka compare` | ABM vs five Lotka–Volterra variants → PNG + JSON report |
+| optimisation | `lotka evolve` | genetic algorithm / MAP-Elites over parameter sets, objective chosen per run |
+
+Dashboard: Space = play/pause. Pick a **Preset** (template) or edit parameters on the left, then
+"Apply & reset". "Export CSV" downloads the per-tick metrics of the current run. The bottom panel
+fits a Lotka–Volterra model to the running simulation and plots it side by side.
+
+## Presets (templates)
+
+Defined in `lotka/presets.py`; usable in the dashboard, `batch --preset` and `compare --preset`.
+Outcomes checked on 200×200, 2000 ticks, 3 seeds.
+
+| preset | what happens |
+|---|---|
+| `stable_coexistence` | defaults: noisy equilibrium ~2,100 prey / ~500 predators, CV 6–10% |
+| `lv_cycles` | predators survive 30 ticks unfed → sustained ~140-tick cycles |
+| `paradox_of_enrichment` | as cycles but vegetation regrows 2× faster → oscillations double |
+| `predator_starvation` | predators starve (N=3), extinct by ~tick 25; prey hit carrying capacity |
+| `overexploitation` | super-hunters eat all prey (~tick 25) then starve (~tick 65) |
+| `prey_overpopulation` | no predators, fast breeding: boom to 11k, famine, boom-bust cycles |
+| `overpopulation_collapse` | prey explode, predators die in the famine, prey later go extinct |
+| `vegetation_scarcity` | 30% fertile land: sparse prey can't feed predators |
+
+## Lotka–Volterra comparison
+
+`lotka/lv.py` fits classic LV, logistic LV, Rosenzweig–MacArthur, a vegetation–prey–predator chain,
+and a rule-derived mean-field model to the ABM, using the per-tick event counts. Theory, the
+parameter mapping and findings are in [docs/lotka_volterra.md](docs/lotka_volterra.md).
+
+    .venv/bin/python -m lotka compare --preset lv_cycles --ticks 3000 --out runs/cmp_cycles
+
+## Evolution (optimisation level)
+
+Each "DNA" is a parameter set (18 genes by default: vegetation, prey and predator traits, initial
+densities). Each genome is simulated on several seeds (same seeds for all genomes), scored by the
+chosen objective, and the best are re-validated on 10 fresh seeds.
+
+| objective | goal |
+|---|---|
+| `coexistence` | robust persistence of both species + resilience (highest lowest-population) |
+| `target_cycles` | sustained cycles with a given period/amplitude (`--arg period=150 --arg cv=0.3`) |
+| `msy` | maximum sustainable density of a species while both coexist (`--arg species=predators\|prey\|total`) |
+| `amplitude` | largest prey oscillations without extinction (edge of collapse) |
+| `lv_match` | parameter sets where the ABM behaves like a fitted LV model (`--arg model=chain`) |
+| `custom` | any expression over metrics, e.g. `--arg "expr=mean_predators/cells*100 - 5*cv_prey"` |
+| `qd` | MAP-Elites: a map of distinct behaviours (prey CV × period), best genome per cell |
+
+    .venv/bin/python -m lotka evolve --list                       # objectives, genes, metrics
+    .venv/bin/python -m lotka evolve --objective coexistence --pop 48 --gens 30
+    .venv/bin/python -m lotka evolve --objective qd --gens 40 --out runs/evolve/qd
+    .venv/bin/python -m lotka evolve --resume runs/evolve/qd --gens 60          # continue
+    .venv/bin/python -m lotka evolve --objective msy --genes predator_repro_prob,predator_starve_time \
+        --fix prey_repro_prob=0.1                                  # evolve a subset only
+
+Defaults: 100×100 grid, 1,500 ticks, 3 seeds, population 48, all CPU cores. Outputs in the run
+directory: `generations.csv`, `evals.csv` (every evaluation — a dataset), `best.json`,
+`checkpoint.json` (resume), `evolution.png`, and `archive.json` for `qd`.
+Finished runs appear in the dashboard's Preset list as "Evolved: …", and can be re-run with
+`lotka batch --params-file runs/evolve/<run>/best.json` or `lotka compare --params-file ...`.
 
 ## Rules (one tick = one period)
 
@@ -95,8 +158,14 @@ prey_eaten, prey_starved, predator_starved, prey_old_age, predator_old_age, prey
 
 ## Layout
 
+    lotka/__main__.py      `python -m lotka serve|batch|compare|evolve`
     lotka/sim.py           model (Params dataclass + vectorised NumPy Simulation)
+    lotka/presets.py       named parameter templates
+    lotka/lv.py            Lotka-Volterra models, rate fitting, equilibria, mean-field map
+    lotka/compare.py       ABM vs LV report (matplotlib)
+    lotka/evolve.py        GA / MAP-Elites optimiser with pluggable objectives
+    docs/lotka_volterra.md theory, ABM↔LV mapping, findings
     lotka/server.py        stdlib HTTP server + JSON API for the dashboard
     lotka/static/index.html dashboard (canvas grid, time series, phase portrait, events)
     lotka/batch.py         headless sweeps, parallel, CSV output
-    tests/test_sim.py      rule-level tests (starvation timing, K feeding, kills, regrowth, determinism)
+    tests/                 rule-level, LV-fitting and evolution tests

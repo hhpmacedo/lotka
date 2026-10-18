@@ -49,6 +49,10 @@
     <label>Zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
   </div>
   <div class="ctrls">
+    <label>Preset <select id="preset"><option value="">— choose a template —</option></select></label>
+  </div>
+  <div id="presetdesc" style="color:var(--mut);font-size:11px;margin-bottom:6px"></div>
+  <div class="ctrls">
     <button id="randseed">New seed</button>
     <button id="defaults">Defaults</button>
     <a href="/api/export.csv" download="lotka_history.csv"><button>Export CSV</button></a>
@@ -85,6 +89,24 @@
       <div class="chart"><div class="t"><span>Events per tick (smoothed)</span></div><canvas id="ev" class="c" height="230"></canvas></div>
     </div>
   </div>
+    <div class="chart" id="lvpanel" style="flex-basis:100%">
+      <div class="t"><span>Lotka–Volterra comparison (ABM solid · model dashed)</span>
+        <span>
+          <select id="lvmodel" class="sm">
+            <option value="rm">Rosenzweig–MacArthur</option><option value="logistic">Logistic LV</option>
+            <option value="classic">Classic LV</option><option value="chain">Veg–prey–predator chain</option>
+            <option value="meanfield">Mean-field of rules</option></select>
+          fit from tick <input id="lvstart" class="sm" type="number" value="100" min="0" style="width:60px">
+          extend <input id="lvext" class="sm" type="number" value="0" min="0" style="width:60px">
+          <button id="lvbtn" style="padding:2px 8px">Fit</button>
+          <label><input type="checkbox" id="lvauto"> auto</label>
+        </span></div>
+      <div class="row">
+        <div style="flex:1.4"><canvas id="lvts" class="c" height="220"></canvas></div>
+        <div style="flex:1"><canvas id="lvphase" class="c" height="220"></canvas></div>
+      </div>
+      <div id="lvinfo" style="font:12px/1.5 ui-monospace,monospace;color:var(--fg);padding:6px 4px;white-space:pre-wrap"></div>
+    </div>
 </main>
 <script>
 const COLORS = { soil:[74,54,34], veg:[62,154,58], prey:[244,224,77], pred:[232,68,58], barren:[34,37,42] };
@@ -136,7 +158,7 @@ async function reset(params) {
   setStatus('');
   try {
     const st = await api('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
-    hist = []; absorb(st); buildParams(st.params);
+    hist = []; lvres = null; lvLastFit = -1; $('lvinfo').textContent = ''; absorb(st); buildParams(st.params);
   } catch (e) { setStatus('Error: ' + e.message); }
 }
 
@@ -252,6 +274,86 @@ function draw() {
   $('c-tick').textContent = lastTick; $('c-prey').textContent = l.prey ?? 0;
   $('c-pred').textContent = l.predators ?? 0; $('c-veg').textContent = l.vegetation ?? 0;
   drawTS(); drawPhase(); drawEvents();
+  if ($('lvauto').checked && lastTick - lvLastFit >= 100) fitLV();
+  else if (lvres) drawLV();
+}
+
+
+// ---------------------------------------------------------------- Lotka-Volterra comparison
+let lvres = null, lvBusy = false, lvLastFit = -1;
+async function fitLV() {
+  if (lvBusy || hist.length < 10) return; lvBusy = true;
+  try {
+    const start = Math.min(+$('lvstart').value, Math.max(0, lastTick - 10));
+    lvres = await api(`/api/lv?model=${$('lvmodel').value}&fit_start=${start}&extend=${+$('lvext').value}`);
+    lvLastFit = lastTick; drawLV();
+  } catch (e) { $('lvinfo').textContent = 'LV error: ' + e.message; }
+  lvBusy = false;
+}
+const f3 = v => v == null || !isFinite(v) ? '—' : (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(3));
+function drawLV() {
+  if (!lvres) return;
+  const r = lvres, tr = r.traj;
+  // time series
+  { const [ctx, w, h] = prepCanvas($('lvts')); const pad = { l:40, r:8, t:8, b:16 };
+    const x1 = Math.max(lastTick, tr.tick[tr.tick.length - 1], 1);
+    let ym = 1; for (const q of hist) ym = Math.max(ym, q.prey, q.predators);
+    for (const k of ['prey', 'predators']) for (const v of tr[k]) if (v != null) ym = Math.max(ym, v);
+    ym = Math.min(ym, 3 * Math.max(...hist.map(q => Math.max(q.prey, q.predators)), 1));
+    axes(ctx, w, h, pad, 0, x1, 0, ym, false);
+    const X = t => pad.l + t / x1 * (w - pad.l - pad.r), Y = v => h - pad.b - Math.min(v, ym) / ym * (h - pad.t - pad.b);
+    const stride = Math.max(1, Math.floor(hist.length / (w * 2)));
+    for (const [k, col] of [['prey', COLORS.prey], ['predators', COLORS.pred]]) {
+      ctx.setLineDash([]); ctx.strokeStyle = `rgba(${col},0.85)`; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let i = 0; i < hist.length; i += stride) i ? ctx.lineTo(X(hist[i].tick), Y(hist[i][k])) : ctx.moveTo(X(hist[i].tick), Y(hist[i][k]));
+      ctx.stroke();
+      ctx.setLineDash([6, 4]); ctx.strokeStyle = `rgb(${col.map(c => Math.min(255, c + 40))})`; ctx.lineWidth = 2; ctx.beginPath();
+      let pen = false;
+      for (let i = 0; i < tr.tick.length; i++) { const v = tr[k][i]; if (v == null) { pen = false; continue; }
+        pen ? ctx.lineTo(X(tr.tick[i]), Y(v)) : ctx.moveTo(X(tr.tick[i]), Y(v)); pen = true; }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    if (+$('lvstart').value > 0) { ctx.strokeStyle = '#555'; const xs = X(+$('lvstart').value); ctx.beginPath(); ctx.moveTo(xs, pad.t); ctx.lineTo(xs, h - pad.b); ctx.stroke(); ctx.fillStyle = '#777'; ctx.fillText('fit window →', xs + 3, pad.t + 10); }
+  }
+  // phase portrait with nullclines
+  { const [ctx, w, h] = prepCanvas($('lvphase')); const pad = { l:40, r:8, t:8, b:16 };
+    let xm = 1, ym = 1; for (const q of hist) { xm = Math.max(xm, q.prey); ym = Math.max(ym, q.predators); }
+    const xcap = xm * 1.5, ycap = ym * 1.5;
+    for (let i = 0; i < tr.tick.length; i++) if (tr.prey[i] != null) { xm = Math.max(xm, Math.min(tr.prey[i], xcap)); ym = Math.max(ym, Math.min(tr.predators[i], ycap)); }
+    axes(ctx, w, h, pad, 0, xm, 0, ym, false);
+    const X = v => pad.l + Math.min(v, xm) / xm * (w - pad.l - pad.r), Y = v => h - pad.b - Math.min(v, ym) / ym * (h - pad.t - pad.b);
+    if (r.nullclines) {
+      ctx.strokeStyle = 'rgba(244,224,77,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath();
+      r.nullclines.prey.forEach(([a, b], i) => i ? ctx.lineTo(X(a), Y(b)) : ctx.moveTo(X(a), Y(b))); ctx.stroke();
+      if (r.nullclines.predator_x) { ctx.strokeStyle = 'rgba(232,68,58,0.45)'; ctx.beginPath(); ctx.moveTo(X(r.nullclines.predator_x), pad.t); ctx.lineTo(X(r.nullclines.predator_x), h - pad.b); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
+    const stride = Math.max(1, Math.floor(hist.length / 3000));
+    ctx.strokeStyle = 'rgba(150,170,255,0.5)'; ctx.beginPath();
+    for (let i = 0; i < hist.length; i += stride) i ? ctx.lineTo(X(hist[i].prey), Y(hist[i].predators)) : ctx.moveTo(X(hist[i].prey), Y(hist[i].predators));
+    ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.setLineDash([5, 3]); ctx.beginPath(); let pen = false;
+    for (let i = 0; i < tr.tick.length; i++) { if (tr.prey[i] == null) { pen = false; continue; }
+      pen ? ctx.lineTo(X(tr.prey[i]), Y(tr.predators[i])) : ctx.moveTo(X(tr.prey[i]), Y(tr.predators[i])); pen = true; }
+    ctx.stroke(); ctx.setLineDash([]);
+    if (r.equilibrium && r.equilibrium.exists) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(r.equilibrium.prey_count), Y(r.equilibrium.predator_count), 4, 0, 7); ctx.fill(); }
+    ctx.fillStyle = '#8a96a3'; ctx.fillText('ABM (blue) · model (white dashed) · nullclines (dotted) · equilibrium ●', pad.l + 4, pad.t + 10);
+  }
+  // info
+  const p = r.params, eq = r.equilibrium, A = r.abm_stats, M = r.model_stats;
+  const lines = [];
+  lines.push(`${r.name}:  ${r.equations.join('   ')}`);
+  lines.push('params (per cell density, per tick): ' + Object.entries(p).map(([k, v]) => `${k}=${f3(v)}`).join('  '));
+  if (Object.keys(r.rate_r2).length) lines.push('rate-fit R² (per-tick events, noisy): ' + Object.entries(r.rate_r2).map(([k, v]) => `${k}=${f3(v)}`).join('  '));
+  if (eq) lines.push(eq.exists ? `equilibrium: prey ${f3(eq.prey_count)}, predators ${f3(eq.predator_count)} · ${eq.type}` +
+      (eq.period ? ` · predicted period ${f3(eq.period)}` : '') + (eq.damping_time ? ` · damping time ${f3(eq.damping_time)}` : '')
+    : `equilibrium: none — ${eq.reason}`);
+  lines.push(`                 ABM (2nd half)                     model (2nd half)`);
+  for (const k of ['prey', 'predators'])
+    lines.push(`${k.padEnd(10)} mean ${f3(A[k].mean).padStart(6)}  CV ${f3(A[k].cv).padStart(5)}  period ${f3(A[k].period).padStart(5)}    mean ${f3(M[k].mean).padStart(6)}  CV ${f3(M[k].cv).padStart(5)}  period ${f3(M[k].period).padStart(5)}`);
+  lines.push(`trajectory R²: prey ${f3(r.fit.prey_r2)}, predators ${f3(r.fit.predator_r2)}  (low R² with matching means/periods = phase drift, expected for noisy cycles)`);
+  $('lvinfo').textContent = lines.join('\n');
 }
 
 // ---------------------------------------------------------------- wiring
@@ -261,11 +363,24 @@ $('reset').onclick = () => reset(readParams());
 $('randseed').onclick = () => { $('p-seed').value = Math.floor(Math.random() * 2**31); reset(readParams()); };
 $('defaults').onclick = () => { const d = {}; for (const s of schema) d[s.name] = s.default; reset(d); };
 for (const id of ['zoom', 'win', 'logy']) $(id).addEventListener('change', draw);
+$('lvbtn').onclick = fitLV;
+$('lvmodel').addEventListener('change', fitLV);
+let presets = {};
+$('preset').addEventListener('change', () => {
+  const k = $('preset').value; if (!k) { $('presetdesc').textContent = ''; return; }
+  const d = {}; for (const s of schema) d[s.name] = s.default;
+  d.seed = +$('p-seed').value;
+  Object.assign(d, presets[k].params);
+  $('presetdesc').textContent = presets[k].desc;
+  lvres = null; $('lvinfo').textContent = ''; reset(d);
+});
 window.addEventListener('resize', draw);
 window.addEventListener('keydown', e => { if (e.target.tagName !== 'INPUT' && e.code === 'Space') { e.preventDefault(); togglePlay(); } });
 
 (async () => {
   schema = await api('/api/schema');
+  presets = await api('/api/presets');
+  for (const [k, v] of Object.entries(presets)) { const o = document.createElement('option'); o.value = k; o.textContent = v.label; $('preset').appendChild(o); }
   const st = await api('/api/state');
   absorb(st); buildParams(st.params);
   requestAnimationFrame(loop);

@@ -9,6 +9,8 @@ Endpoints
   GET  /api/step?n=K&since=T advance K ticks, returns grid + history rows after tick T
   GET  /api/state?since=T   current state without stepping
   GET  /api/export.csv      full metrics history as CSV
+  GET  /api/lv?model=M&fit_start=T&extend=E  Lotka-Volterra comparison for the current run
+  GET  /api/presets         named parameter presets
 """
 
 from __future__ import annotations
@@ -23,9 +25,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from . import lv
+from .presets import PRESETS
 from .sim import METRIC_KEYS, Params, Simulation
 
 STATIC = Path(__file__).parent / "static"
+RUNS = Path(__file__).resolve().parent.parent / "runs" / "evolve"
+
+
+def all_presets() -> dict:
+    """Built-in presets plus the best genome of every finished evolution run."""
+    out = dict(PRESETS)
+    if RUNS.exists():
+        for f in sorted(RUNS.glob("*/best.json")):
+            try:
+                b = json.loads(f.read_text())
+            except (OSError, ValueError):
+                continue
+            m = b.get("metrics", {})
+            out[f"evolved:{f.parent.name}"] = {
+                "label": f"Evolved: {f.parent.name} ({b.get('objective')})",
+                "desc": (f"GA objective '{b.get('objective')}' {b.get('args') or ''} — validated fitness "
+                         f"{b.get('validated_fitness')} on {len(b.get('validation_seeds', []))} hold-out seeds; "
+                         f"coexist {m.get('coexist_frac')}, mean prey {m.get('mean_prey')}, "
+                         f"predators {m.get('mean_predators')}, prey CV {m.get('cv_prey')}, period {m.get('period_prey')}."),
+                "params": b.get("params", {}),
+            }
+    return out
 MAX_CELLS = 1_000_000
 
 
@@ -58,6 +84,10 @@ class App:
                 "grid": base64.b64encode(s.render_codes().tobytes()).decode(),
                 "history": hist,
             }
+
+    def lv(self, model: str, fit_start: int, extend: int) -> dict:
+        with self.lock:
+            return lv.compare(self.sim, model, fit_start, extend)
 
     def csv(self) -> str:
         with self.lock:
@@ -102,6 +132,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(APP.state(int(q.get("since", -1)), n))
             elif u.path == "/api/state":
                 self._json(APP.state(int(q.get("since", -1))))
+            elif u.path == "/api/lv":
+                self._json(APP.lv(q.get("model", "rm"), int(q.get("fit_start", 0)), int(q.get("extend", 0))))
+            elif u.path == "/api/presets":
+                self._json(all_presets())
             elif u.path == "/api/export.csv":
                 self._send(200, APP.csv().encode(), "text/csv")
             else:

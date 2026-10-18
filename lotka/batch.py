@@ -4,6 +4,9 @@ Examples
   # single run, 2000 ticks
   python -m lotka.batch --ticks 2000 --out runs/baseline
 
+  # start from a preset (see lotka/presets.py), override one value, 5 seeds
+  python -m lotka.batch --preset lv_cycles --set veg_regrow_time=15 --seeds 0:4:5
+
   # sweep predator starvation time x prey reproduction, 3 seeds each, 4 workers
   python -m lotka.batch --ticks 3000 --seeds 0,1,2 \
       --set width=150 --set height=150 \
@@ -31,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .presets import PRESETS, load_params_file, preset_params
 from .sim import METRIC_KEYS, Params, Simulation
 
 
@@ -139,7 +143,9 @@ def run_one(job: dict) -> dict:
 
 
 def build_jobs(args) -> list[dict]:
-    base: dict = {}
+    base: dict = preset_params(args.preset) if args.preset else {}
+    if args.params_file:
+        base.update(load_params_file(args.params_file))
     for s in args.set:
         k, v = s.split("=", 1)
         base[k] = v
@@ -173,6 +179,8 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     ap.add_argument("--ticks", type=int, default=2000)
     ap.add_argument("--seeds", default="0", help="comma list or lo:hi:n")
+    ap.add_argument("--preset", choices=list(PRESETS), help="start from a named preset")
+    ap.add_argument("--params-file", help="start from a JSON file, e.g. runs/evolve/<run>/best.json")
     ap.add_argument("--set", action="append", default=[], metavar="PARAM=VALUE", help="fixed parameter")
     ap.add_argument("--sweep", action="append", default=[], metavar="PARAM=V1,V2|lo:hi:n", help="swept parameter")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))

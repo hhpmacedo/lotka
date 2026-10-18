@@ -148,7 +148,8 @@ STEP_OFFSETS = moore_offsets(1)  # 8 possible moves
 
 METRIC_KEYS = ["tick", "prey", "predators", "vegetation",
                "prey_births", "predator_births", "prey_eaten", "prey_starved",
-               "predator_starved", "prey_old_age", "predator_old_age", "prey_fed_frac"]
+               "predator_starved", "prey_old_age", "predator_old_age", "prey_fed_frac",
+               "veg_eaten", "veg_regrown"]
 
 
 class Simulation:
@@ -205,6 +206,7 @@ class Simulation:
         grown = regrowing & (self.veg_timer >= self.p.veg_regrow_time)
         self.veg[grown] = True
         self.veg_timer[grown] = 0
+        return int(grown.sum())
 
     def _move(self, species: int, score_field: np.ndarray | None, directed_prob: float):
         ys, xs = self._positions(species)
@@ -267,7 +269,7 @@ class Simulation:
         ev: dict[str, float] = {}
 
         # 1. vegetation
-        self._regrow()
+        ev["veg_regrown"] = self._regrow()
 
         # 2. movement: prey flee predators & seek vegetation, predators chase prey
         if p.prey_directed_prob > 0:
@@ -306,6 +308,7 @@ class Simulation:
             self.veg_timer[ty[bite], tx[bite]] = 0
             eaten += bite
         fed = eaten >= p.prey_food_need
+        ev["veg_eaten"] = int(eaten.sum())
         ev["prey_fed_frac"] = float(fed.mean()) if len(fed) else 0.0
 
         # 5. hunger & ageing
