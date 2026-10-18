@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from .evolve import DEFAULT_GENES, METRIC_NAMES, OBJECTIVES
+from .evolve import DEFAULT_FIXED, DEFAULT_GENES, METRIC_NAMES, OBJECTIVES
 from .sim import Params
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +52,7 @@ def meta() -> dict:
         "genes": {k: {"lo": lo, "hi": hi, "type": _TYPES[k]} for k, (lo, hi) in DEFAULT_GENES.items()},
         "params": Params.schema(),
         "metrics": METRIC_NAMES,
+        "fixed_defaults": DEFAULT_FIXED,
         "cpus": os.cpu_count() or 1,
         "defaults": {"pop": 48, "gens": 30, "seeds": 3, "ticks": 1500, "size": 100,
                      "workers": os.cpu_count() or 1, "mut_sigma": 0.12, "validate_seeds": 10},
@@ -173,6 +174,8 @@ def start(body: dict) -> dict:
         args += ["--genes", ",".join(genes)]
         for k, (lo, hi) in genes.items():
             args += ["--gene", f"{k}={float(lo)}:{float(hi)}"]
+    if body.get("allow_static"):
+        args += ["--allow-static"]
     for k, v in (body.get("fixed") or {}).items():
         if k not in _TYPES:
             raise ValueError(f"unknown parameter {k}")

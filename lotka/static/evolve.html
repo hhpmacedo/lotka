@@ -72,8 +72,10 @@
       <label class="f" title="hold-out seeds for final validation">Val. seeds <input id="validate_seeds" type="number" min="1"></label>
     </div>
     <div class="desc" id="estimate"></div>
+    <label style="display:flex;gap:6px;align-items:center;margin:4px 0"><input type="checkbox" id="allow_static">
+      allow "static" coexistence (count runs where a species stopped reproducing)</label>
 
-    <h3>Genes (DNA) <span class="muted" style="text-transform:none">— unchecked genes are fixed at the value shown</span></h3>
+    <h3>Genes (DNA) <span class="muted" style="text-transform:none">— unchecked genes are fixed at the value shown (lifespans default to 150/300 so nothing lives forever; 0 = immortal)</span></h3>
     <div style="margin-bottom:6px"><button id="gall">all</button> <button id="gnone">none</button> <button id="greset">reset</button></div>
     <div style="max-height:360px;overflow:auto"><table id="genes"><thead><tr><th></th><th>parameter</th><th>min</th><th>max</th><th>fixed</th></tr></thead><tbody></tbody></table></div>
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
@@ -156,6 +158,7 @@ function buildArgs() {
 function buildGenes() {
   const tb = $('genes').querySelector('tbody'); tb.innerHTML = '';
   const defaults = Object.fromEntries(META.params.map(p => [p.name, p.default]));
+  Object.assign(defaults, META.fixed_defaults);  // lifespans used during evolution
   for (const p of META.params) {
     if (['width', 'height', 'seed'].includes(p.name)) continue;
     const g = META.genes[p.name];
@@ -182,7 +185,8 @@ $('gall').onclick = () => document.querySelectorAll('#genes tbody input[type=che
 $('gnone').onclick = () => document.querySelectorAll('#genes tbody input[type=checkbox]').forEach(c => { c.checked = false; c.onchange(); });
 $('greset').onclick = buildGenes;
 $('start').onclick = async () => {
-  const body = { name: $('name').value.trim() || undefined, objective: $('objective').value, args: {}, genes: {}, fixed: {} };
+  const body = { name: $('name').value.trim() || undefined, objective: $('objective').value, args: {}, genes: {}, fixed: {},
+                 allow_static: $('allow_static').checked };
   for (const k of ['pop', 'gens', 'seeds', 'ticks', 'size', 'workers', 'validate_seeds', 'mut_sigma']) body[k] = $(k).value;
   document.querySelectorAll('#objargs [data-arg]').forEach(el => body.args[el.dataset.arg] = el.value);
   document.querySelectorAll('#genes tbody tr').forEach(tr => {
@@ -190,7 +194,7 @@ $('start').onclick = async () => {
     if (tr.querySelector('input[type=checkbox]').checked) body.genes[n] = [+tr.querySelector('.lo').value, +tr.querySelector('.hi').value];
     else {
       const p = META.params.find(p => p.name === n), v = tr.querySelector('.fx').value;
-      if (String(v) !== String(p.default)) body.fixed[n] = v;
+      if (String(v) !== String(p.default) || n in META.fixed_defaults) body.fixed[n] = v;
     }
   });
   if (!Object.keys(body.genes).length) { $('startmsg').textContent = 'select at least one gene'; return; }

@@ -8,6 +8,11 @@
     python -m lotka.evolve --resume runs/evolve/coexist --gens 50   # continue a run
     python -m lotka.evolve --list                            # objectives, genes, metrics
 
+Lifespans default to prey 150 / predators 300 ticks during evolution (--immortal to disable, or
+--fix/--gene prey_max_age=...), and coexistence only counts if both species are still being born
+in the second half of the run (--allow-static to disable). This stops "immortal, non-breeding
+predators" from scoring as perfect coexistence.
+
 Every genome is evaluated on several seeds (common random numbers: the same seeds for every
 genome) so luck can't be selected for; the top genomes are then re-validated on fresh seeds.
 
@@ -67,6 +72,10 @@ DEFAULT_GENES: dict[str, tuple[float, float]] = {
 
 _TYPES = {f["name"]: f["type"] for f in Params.schema()}
 
+# Applied during evolution unless evolved or fixed explicitly: without a finite lifespan a few
+# immortal, non-breeding animals can "coexist" forever, which the optimiser happily exploits.
+DEFAULT_FIXED = {"prey_max_age": 150, "predator_max_age": 300}
+
 
 @dataclass
 class Genome:
@@ -114,7 +123,15 @@ def evaluate(job: dict) -> dict:
     cells = p.width * p.height
     ext = [t for t in (m["prey_extinct_tick"], m["predator_extinct_tick"]) if t >= 0]
     alive = min(ext) if ext else T
-    m.update(cells=cells, ticks=T, survival=alive / T, coexist=float(m["outcome"] == "coexist"))
+    half = sim.history[len(sim.history) // 2:]
+    m["prey_births_tail"] = int(sum(h["prey_births"] for h in half))
+    m["predator_births_tail"] = int(sum(h["predator_births"] for h in half))
+    coexist = m["outcome"] == "coexist"
+    # a run only counts as coexistence if both populations keep reproducing (no immortal survivors)
+    m["static"] = float(coexist and (m["prey_births_tail"] == 0 or m["predator_births_tail"] == 0))
+    if job.get("require_turnover", True) and m["static"]:
+        coexist = False
+    m.update(cells=cells, ticks=T, survival=alive / T, coexist=float(coexist))
     m["resilience"] = (min(m["min_prey_after_transient"] / m["mean_prey"],
                            m["min_predators_after_transient"] / m["mean_predators"])
                        if m["coexist"] and m["mean_prey"] > 0 and m["mean_predators"] > 0 else 0.0)
@@ -145,12 +162,15 @@ def evaluate(job: dict) -> dict:
 def _viable(fn):
     """Coexisting runs score fn(m) >= 0; failed runs score survival - 1 in [-1, 0)."""
     def per_seed(m, args):
-        return fn(m, args) if m["coexist"] else m["survival"] - 1.0
+        if m["coexist"]:
+            return fn(m, args)
+        return (0.5 if m.get("static") else m["survival"]) - 1.0
     return per_seed
 
 
 def _coexistence(ms, args):
-    surv = np.array([m["survival"] for m in ms])
+    # static runs (one species no longer reproduces) only get half credit for survival
+    surv = np.array([m["survival"] * (0.5 if m.get("static") and not m["coexist"] else 1.0) for m in ms])
     res = np.array([m["resilience"] for m in ms])
     return float(surv.mean() + 0.5 * res.mean() - 0.25 * surv.std())
 
@@ -250,7 +270,8 @@ METRIC_NAMES = ["survival", "coexist", "resilience", "mean_prey", "mean_predator
                 "density_prey", "density_predators", "cv_prey", "cv_predators", "cv_vegetation",
                 "period_prey", "period_predators", "predator_lag", "max_prey", "max_predators",
                 "min_prey_after_transient", "min_predators_after_transient",
-                "prey_extinct_tick", "predator_extinct_tick", "cells", "ticks", "lv_error"]
+                "prey_extinct_tick", "predator_extinct_tick", "cells", "ticks", "lv_error",
+                "prey_births_tail", "predator_births_tail", "static"]
 
 
 def fitness_of(obj: Objective, ms: list[dict], args: dict) -> float:
@@ -296,7 +317,8 @@ class Evolver:
             params = {**self.fixed, **self.genome.decode(u)}
             for s in seeds:
                 jobs.append({"params": params, "seed": s, "ticks": self.cfg["ticks"],
-                             "stop_on_pred": self.obj.stop_on_pred, "lv_model": lv_model})
+                             "stop_on_pred": self.obj.stop_on_pred, "lv_model": lv_model,
+                             "require_turnover": self.cfg.get("require_turnover", True)})
         results = list(pool.map(evaluate, jobs, chunksize=1)) if pool else [evaluate(j) for j in jobs]
         self.n_evals += len(jobs)
         fits, aggs = [], []
@@ -568,6 +590,10 @@ def main(argv=None):
     ap.add_argument("--genes", default="", help="comma list restricting which genes evolve (default: all)")
     ap.add_argument("--gene", action="append", default=[], metavar="NAME=LO:HI", help="add/override gene bounds")
     ap.add_argument("--fix", action="append", default=[], metavar="PARAM=VALUE", help="fixed non-evolved parameter")
+    ap.add_argument("--immortal", action="store_true",
+                    help="don't apply the default lifespans (prey 150, predators 300 ticks)")
+    ap.add_argument("--allow-static", action="store_true",
+                    help="count runs as coexistence even if a species stopped reproducing")
     ap.add_argument("--elite", type=int, default=2)
     ap.add_argument("--cx-prob", type=float, default=0.8)
     ap.add_argument("--mut-rate", type=float, default=0.0, help="per-gene mutation prob (0 = 1.5/n_genes)")
@@ -610,6 +636,8 @@ def main(argv=None):
             lo, hi = rng.split(":")
             genes[k] = (float(lo), float(hi))
         fixed = {"width": a.size, "height": a.size}
+        if not a.immortal:
+            fixed.update({k: v for k, v in DEFAULT_FIXED.items() if k not in genes})
         for f in a.fix:
             k, v = f.split("=", 1)
             fixed[k] = v
@@ -628,7 +656,7 @@ def main(argv=None):
                "ticks": a.ticks, "genes": genes, "fixed": fixed, "elite": a.elite, "cx_prob": a.cx_prob,
                "mut_rate": a.mut_rate, "mut_sigma": a.mut_sigma, "validate_top": a.validate_top,
                "validate_seeds": a.validate_seeds, "rng_seed": a.rng_seed, "out": str(out),
-               "workers": a.workers}
+               "workers": a.workers, "require_turnover": not a.allow_static}
         out.mkdir(parents=True, exist_ok=True)
         (out / "config.json").write_text(json.dumps(cfg, indent=2))
         ev = Evolver(cfg)

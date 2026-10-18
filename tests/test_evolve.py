@@ -50,3 +50,27 @@ def test_small_evolution_run_and_resume(tmp_path, objective, extra):
     evolve.main(["--resume", str(out), "--gens", "2", "--workers", "1"])
     gens = (out / "generations.csv").read_text().strip().splitlines()
     assert len(gens) == 1 + 3  # header + gen 0,1,2
+
+
+def test_immortal_non_breeding_predators_are_not_coexistence():
+    params = dict(width=40, height=40, predator_repro_prob=0.0, predator_starve_time=1000,
+                  prey_max_age=0, predator_max_age=0)
+    job = {"params": params, "seed": 0, "ticks": 300, "stop_on_pred": True, "lv_model": None}
+    m = evolve.evaluate({**job, "require_turnover": True})
+    assert m["outcome"] == "coexist" and m["static"] == 1.0 and m["coexist"] == 0.0
+    assert evolve.OBJECTIVES["msy"].per_seed(m, {}) == -0.5
+    m2 = evolve.evaluate({**job, "require_turnover": False})
+    assert m2["coexist"] == 1.0
+
+
+def test_default_lifespans_applied(tmp_path):
+    out = tmp_path / "r"
+    evolve.main(["--pop", "4", "--gens", "0", "--ticks", "30", "--size", "20", "--seeds", "1",
+                 "--workers", "1", "--validate-seeds", "1", "--validate-top", "1", "--out", str(out)])
+    cfg = json.loads((out / "config.json").read_text())
+    assert cfg["fixed"]["prey_max_age"] == 150 and cfg["fixed"]["predator_max_age"] == 300
+    assert cfg["require_turnover"] is True
+    out2 = tmp_path / "r2"
+    evolve.main(["--pop", "4", "--gens", "0", "--ticks", "30", "--size", "20", "--seeds", "1", "--immortal",
+                 "--workers", "1", "--validate-seeds", "1", "--validate-top", "1", "--out", str(out2)])
+    assert "prey_max_age" not in json.loads((out2 / "config.json").read_text())["fixed"]
