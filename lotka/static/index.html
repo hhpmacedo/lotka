@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lotka — predator/prey ABM</title>
+<style>
+  :root { --bg:#111418; --panel:#1a1f26; --line:#2b323c; --fg:#d8dee6; --mut:#8a96a3;
+          --soil:#4a3622; --veg:#3e9a3a; --prey:#f4e04d; --pred:#e8443a; --barren:#22252a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.4 system-ui,sans-serif; display:flex; height:100vh; overflow:hidden; }
+  aside { width:330px; background:var(--panel); border-right:1px solid var(--line); overflow-y:auto; padding:12px; flex-shrink:0; }
+  main { flex:1; display:flex; flex-wrap:wrap; align-content:flex-start; gap:12px; padding:12px; overflow:auto; }
+  h1 { font-size:18px; margin:0 0 4px; } h1 small { color:var(--mut); font-weight:normal; font-size:12px; }
+  h3 { margin:12px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); cursor:pointer; user-select:none; }
+  .ctrls { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  button { background:#2a3340; color:var(--fg); border:1px solid #3a4553; border-radius:5px; padding:6px 10px; cursor:pointer; font:inherit; }
+  button:hover { background:#344050; } button.primary { background:#2d6cdf; border-color:#2d6cdf; }
+  .param { display:grid; grid-template-columns:1fr 90px; gap:2px 6px; align-items:center; margin:4px 0; }
+  .param label { font-size:12px; } .param .d { grid-column:1/3; color:var(--mut); font-size:11px; margin-top:-2px; }
+  .param input[type=number] { width:90px; background:#0f1317; color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:3px 5px; }
+  .param.changed label { color:#7fb2ff; }
+  .grp.collapsed .param { display:none; }
+  #gridwrap { display:flex; flex-direction:column; gap:8px; }
+  #grid { image-rendering:pixelated; border:1px solid var(--line); background:#000; }
+  .legend { display:flex; gap:12px; color:var(--mut); font-size:12px; }
+  .legend i { display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:-1px; }
+  #right { display:flex; flex-direction:column; gap:10px; min-width:480px; flex:1; }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:8px; }
+  .card .v { font-size:20px; font-weight:600; } .card .l { color:var(--mut); font-size:11px; text-transform:uppercase; }
+  .chart { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:6px; }
+  .chart .t { color:var(--mut); font-size:11px; text-transform:uppercase; margin:0 0 4px 4px; display:flex; justify-content:space-between; }
+  canvas.c { width:100%; display:block; }
+  .row { display:flex; gap:10px; } .row > .chart { flex:1; }
+  #status { color:var(--mut); font-size:12px; min-height:16px; }
+  select, .sm { background:#0f1317; color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:3px; font:inherit; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Lotka <small>agent-based predator / prey</small></h1>
+  <div class="ctrls">
+    <button id="play" class="primary">▶ Play</button>
+    <button id="stepbtn">Step</button>
+    <button id="reset">Apply &amp; reset</button>
+  </div>
+  <div class="ctrls">
+    <label>Ticks/frame <select id="speed"><option>1</option><option selected>2</option><option>5</option><option>10</option><option>25</option><option>50</option></select></label>
+    <label>Zoom <select id="zoom"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
+  </div>
+  <div class="ctrls">
+    <button id="randseed">New seed</button>
+    <button id="defaults">Defaults</button>
+    <a href="/api/export.csv" download="lotka_history.csv"><button>Export CSV</button></a>
+  </div>
+  <div id="status"></div>
+  <div id="params"></div>
+</aside>
+<main>
+  <div id="gridwrap">
+    <canvas id="grid"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--veg)"></i>vegetation</span>
+      <span><i style="background:var(--soil)"></i>regrowing soil</span>
+      <span><i style="background:var(--prey)"></i>prey</span>
+      <span><i style="background:var(--pred)"></i>predator</span>
+      <span><i style="background:var(--barren)"></i>barren</span>
+    </div>
+  </div>
+  <div id="right">
+    <div class="cards">
+      <div class="card"><div class="l">Tick</div><div class="v" id="c-tick">0</div></div>
+      <div class="card"><div class="l" style="color:var(--prey)">Prey</div><div class="v" id="c-prey">0</div></div>
+      <div class="card"><div class="l" style="color:var(--pred)">Predators</div><div class="v" id="c-pred">0</div></div>
+      <div class="card"><div class="l" style="color:var(--veg)">Vegetation</div><div class="v" id="c-veg">0</div></div>
+    </div>
+    <div class="chart">
+      <div class="t"><span>Populations over time</span>
+        <span><label><input type="checkbox" id="logy"> log</label>
+        <label>window <select id="win" class="sm"><option value="500">500</option><option value="2000" selected>2000</option><option value="10000">10k</option><option value="0">all</option></select></label></span></div>
+      <canvas id="ts" class="c" height="220"></canvas>
+    </div>
+    <div class="row">
+      <div class="chart"><div class="t"><span>Phase portrait (prey vs predators)</span></div><canvas id="phase" class="c" height="230"></canvas></div>
+      <div class="chart"><div class="t"><span>Events per tick (smoothed)</span></div><canvas id="ev" class="c" height="230"></canvas></div>
+    </div>
+  </div>
+</main>
+<script>
+const COLORS = { soil:[74,54,34], veg:[62,154,58], prey:[244,224,77], pred:[232,68,58], barren:[34,37,42] };
+const PALETTE = [COLORS.soil, COLORS.veg, COLORS.prey, COLORS.pred, COLORS.barren];
+let schema = [], hist = [], playing = false, busy = false, W = 0, H = 0, lastGrid = null, lastTick = -1, extinct = false;
+const $ = id => document.getElementById(id);
+
+async function api(path, opts) {
+  const r = await fetch(path, opts); const j = await r.json();
+  if (j.error) throw new Error(j.error); return j;
+}
+
+function buildParams(current) {
+  const box = $('params'); box.innerHTML = '';
+  const groups = {};
+  for (const s of schema) (groups[s.group] ||= []).push(s);
+  for (const [g, items] of Object.entries(groups)) {
+    const div = document.createElement('div'); div.className = 'grp';
+    const h = document.createElement('h3'); h.textContent = '▾ ' + g;
+    h.onclick = () => { div.classList.toggle('collapsed'); h.textContent = (div.classList.contains('collapsed') ? '▸ ' : '▾ ') + g; };
+    div.appendChild(h);
+    for (const s of items) {
+      const row = document.createElement('div'); row.className = 'param';
+      const v = current[s.name];
+      const input = s.type === 'bool'
+        ? `<input type="checkbox" id="p-${s.name}" ${v ? 'checked' : ''}>`
+        : `<input type="number" id="p-${s.name}" value="${v}" min="${s.min}" max="${s.max}" step="${s.step}">`;
+      row.innerHTML = `<label for="p-${s.name}" title="${s.name}">${s.name.replace(/_/g, ' ')}</label>${input}<div class="d">${s.desc}</div>`;
+      const el = row.querySelector('input');
+      el.addEventListener('input', () => row.classList.toggle('changed', readOne(s) !== current[s.name]));
+      div.appendChild(row);
+    }
+    box.appendChild(div);
+  }
+}
+function readOne(s) { const el = $('p-' + s.name); return s.type === 'bool' ? el.checked : Number(el.value); }
+function readParams() { const o = {}; for (const s of schema) o[s.name] = readOne(s); return o; }
+
+function absorb(st) {
+  W = st.width; H = st.height; extinct = st.extinct;
+  for (const h of st.history) hist.push(h);
+  lastTick = st.tick;
+  lastGrid = Uint8Array.from(atob(st.grid), c => c.charCodeAt(0));
+  draw();
+  if (extinct && playing) { togglePlay(); setStatus('Both species extinct at tick ' + st.tick); }
+}
+
+async function reset(params) {
+  setStatus('');
+  try {
+    const st = await api('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
+    hist = []; absorb(st); buildParams(st.params);
+  } catch (e) { setStatus('Error: ' + e.message); }
+}
+
+async function step(n) {
+  if (busy) return; busy = true;
+  try { absorb(await api(`/api/step?n=${n}&since=${lastTick}`)); }
+  catch (e) { setStatus('Error: ' + e.message); if (playing) togglePlay(); }
+  busy = false;
+}
+
+function loop() { if (playing) step(+$('speed').value); requestAnimationFrame(loop); }
+function togglePlay() { playing = !playing; $('play').textContent = playing ? '❚❚ Pause' : '▶ Play'; }
+function setStatus(t) { $('status').textContent = t; }
+
+// ---------------------------------------------------------------- drawing
+function drawGrid() {
+  const c = $('grid'), z = +$('zoom').value;
+  if (c.width !== W) { c.width = W; c.height = H; }
+  c.style.width = (W * z) + 'px'; c.style.height = (H * z) + 'px';
+  const ctx = c.getContext('2d'), img = ctx.createImageData(W, H), d = img.data;
+  for (let i = 0; i < lastGrid.length; i++) {
+    const col = PALETTE[lastGrid[i]]; const j = i * 4;
+    d[j] = col[0]; d[j+1] = col[1]; d[j+2] = col[2]; d[j+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function prepCanvas(c) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = +c.getAttribute('height');
+  if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); c.style.height = h + 'px'; }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return [ctx, w, h];
+}
+
+function axes(ctx, w, h, pad, xmin, xmax, ymin, ymax, ylog) {
+  ctx.strokeStyle = '#2b323c'; ctx.fillStyle = '#8a96a3'; ctx.font = '10px system-ui'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h - pad.b); ctx.lineTo(w - pad.r, h - pad.b); ctx.stroke();
+  for (let k = 0; k <= 4; k++) {
+    const y = pad.t + (h - pad.t - pad.b) * k / 4;
+    let v = ymax - (ymax - ymin) * k / 4; if (ylog) v = Math.pow(10, v) - 1;
+    ctx.fillText(fmt(v), 2, y + 3);
+    ctx.strokeStyle = '#20262e'; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+  }
+  ctx.fillText(fmt(xmin), pad.l, h - 4); const s = fmt(xmax); ctx.fillText(s, w - pad.r - ctx.measureText(s).width, h - 4);
+}
+function fmt(v) { v = Math.round(v); return Math.abs(v) >= 10000 ? (v / 1000).toFixed(0) + 'k' : String(v); }
+
+function drawTS() {
+  const [ctx, w, h] = prepCanvas($('ts')); if (!hist.length) return;
+  const win = +$('win').value, data = win ? hist.slice(-win) : hist, ylog = $('logy').checked;
+  const pad = { l:40, r:40, t:8, b:16 }, tr = v => ylog ? Math.log10(v + 1) : v;
+  let ymax = 1, vmax = 1;
+  for (const r of data) { ymax = Math.max(ymax, tr(r.prey), tr(r.predators)); vmax = Math.max(vmax, r.vegetation); }
+  const x0 = data[0].tick, x1 = Math.max(data[data.length - 1].tick, x0 + 1);
+  axes(ctx, w, h, pad, x0, x1, 0, ymax, ylog);
+  // right axis = vegetation (linear)
+  ctx.fillStyle = `rgb(${COLORS.veg})`;
+  for (let k = 0; k <= 4; k++) { const y = pad.t + (h - pad.t - pad.b) * k / 4; ctx.fillText(fmt(vmax * (1 - k / 4)), w - pad.r + 4, y + 3); }
+  const X = t => pad.l + (t - x0) / (x1 - x0) * (w - pad.l - pad.r);
+  const Y = v => h - pad.b - tr(v) / ymax * (h - pad.t - pad.b), YV = v => h - pad.b - v / vmax * (h - pad.t - pad.b);
+  const stride = Math.max(1, Math.floor(data.length / (w * 2)));
+  const line = (k, col, yf, lw) => {
+    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+    for (let i = 0; i < data.length; i += stride) { const r = data[i]; i ? ctx.lineTo(X(r.tick), yf(r[k])) : ctx.moveTo(X(r.tick), yf(r[k])); }
+    ctx.stroke();
+  };
+  line('vegetation', `rgba(${COLORS.veg},0.6)`, YV, 1);
+  line('prey', `rgb(${COLORS.prey})`, Y, 1.5);
+  line('predators', `rgb(${COLORS.pred})`, Y, 1.5);
+  ctx.fillStyle = '#8a96a3'; ctx.fillText('left: animals · right: vegetation', pad.l + 6, pad.t + 10);
+}
+
+function drawPhase() {
+  const [ctx, w, h] = prepCanvas($('phase')); if (hist.length < 2) return;
+  const pad = { l:40, r:8, t:8, b:16 };
+  let xm = 1, ym = 1; for (const r of hist) { xm = Math.max(xm, r.prey); ym = Math.max(ym, r.predators); }
+  axes(ctx, w, h, pad, 0, xm, 0, ym, false);
+  const X = v => pad.l + v / xm * (w - pad.l - pad.r), Y = v => h - pad.b - v / ym * (h - pad.t - pad.b);
+  const n = hist.length, stride = Math.max(1, Math.floor(n / 4000));
+  for (let i = stride; i < n; i += stride) {
+    const a = hist[i - stride], b = hist[i], age = i / n;
+    ctx.strokeStyle = `rgba(${Math.round(80 + 175 * age)},${Math.round(140 + 60 * age)},255,${0.15 + 0.85 * age})`;
+    ctx.beginPath(); ctx.moveTo(X(a.prey), Y(a.predators)); ctx.lineTo(X(b.prey), Y(b.predators)); ctx.stroke();
+  }
+  const l = hist[n - 1]; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(l.prey), Y(l.predators), 3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#8a96a3'; ctx.fillText('prey →', w - 50, h - 20); ctx.save(); ctx.translate(48, 40); ctx.fillText('predators ↑', 0, 0); ctx.restore();
+}
+
+function drawEvents() {
+  const [ctx, w, h] = prepCanvas($('ev')); if (hist.length < 2) return;
+  const win = +$('win').value, data = win ? hist.slice(-win) : hist, pad = { l:40, r:8, t:8, b:16 };
+  const series = [['prey_births', '#f4e04d'], ['prey_eaten', '#ff8a3d'], ['prey_starved', '#a07a3a'],
+                  ['predator_births', '#ff6b9a'], ['predator_starved', '#8e3b3b']];
+  const alpha = 0.1, sm = {};
+  for (const [k] of series) { let e = data[0][k]; sm[k] = data.map(r => (e = e + alpha * (r[k] - e))); }
+  let ymax = 1; for (const [k] of series) for (const v of sm[k]) ymax = Math.max(ymax, v);
+  const x0 = data[0].tick, x1 = Math.max(data[data.length - 1].tick, x0 + 1);
+  axes(ctx, w, h, pad, x0, x1, 0, ymax, false);
+  const X = t => pad.l + (t - x0) / (x1 - x0) * (w - pad.l - pad.r), Y = v => h - pad.b - v / ymax * (h - pad.t - pad.b);
+  const stride = Math.max(1, Math.floor(data.length / (w * 2)));
+  let ly = pad.t + 10;
+  for (const [k, col] of series) {
+    ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let i = 0; i < data.length; i += stride) i ? ctx.lineTo(X(data[i].tick), Y(sm[k][i])) : ctx.moveTo(X(data[i].tick), Y(sm[k][i]));
+    ctx.stroke(); ctx.fillStyle = col; ctx.fillText(k.replace('_', ' '), w - 100, ly); ly += 12;
+  }
+}
+
+function draw() {
+  if (!lastGrid) return;
+  drawGrid();
+  const l = hist[hist.length - 1] || {};
+  $('c-tick').textContent = lastTick; $('c-prey').textContent = l.prey ?? 0;
+  $('c-pred').textContent = l.predators ?? 0; $('c-veg').textContent = l.vegetation ?? 0;
+  drawTS(); drawPhase(); drawEvents();
+}
+
+// ---------------------------------------------------------------- wiring
+$('play').onclick = togglePlay;
+$('stepbtn').onclick = () => step(1);
+$('reset').onclick = () => reset(readParams());
+$('randseed').onclick = () => { $('p-seed').value = Math.floor(Math.random() * 2**31); reset(readParams()); };
+$('defaults').onclick = () => { const d = {}; for (const s of schema) d[s.name] = s.default; reset(d); };
+for (const id of ['zoom', 'win', 'logy']) $(id).addEventListener('change', draw);
+window.addEventListener('resize', draw);
+window.addEventListener('keydown', e => { if (e.target.tagName !== 'INPUT' && e.code === 'Space') { e.preventDefault(); togglePlay(); } });
+
+(async () => {
+  schema = await api('/api/schema');
+  const st = await api('/api/state');
+  absorb(st); buildParams(st.params);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
